@@ -1,9 +1,34 @@
-# egcar 0.2.0
+# egcar 0.2.1
 
 Accelerated sparse generalized correlation analysis via pairwise regression.
 This revision provides **separate L11-only and L21-only estimators**, each with
 positive-grid cross-validation and rate-scaled fitting. It also includes the
 complete local experiment and its original common-loss comparison CV routines.
+
+## Speed-only revision
+
+The compiled EGCAR solver adds mapped Eigen products for small matrices,
+read-only mapped covariance inputs, reusable matrix workspaces and fused
+proximal/dual/residual loops. Large products retain Armadillo/BLAS. This extends
+the computation ideas in `ZixuanWu1/EfficientCCA` without adopting its stopping
+rule, its two-view loss, or its group-penalty definition. See
+[the source review](inst/doc/EFFICIENTCCA_REVIEW.md) and
+[validation details](inst/doc/SPEED_VALIDATION_021.md).
+
+**Every `R/` implementation file is unchanged from 0.2.0.** In particular,
+SGCA, RGCCA, SGCCA, MultiCCA, the oracles, statistical objectives, CV grids,
+shared folds and worker allocation are not changed. Use `backend = "cpp"`
+for the new native implementation. `backend = "R"` and `"reference"` retain
+the prior implementations. Install the new `RcppEigen` build dependency.
+
+A one-configuration check of all ten methods, with five CV workers, is:
+
+```r
+source(system.file("examples", "06_small_all_methods_check.R", package = "egcar"))
+```
+
+The check uses n=60, total dimension 12, rank 1, signal 0.8 and small positive
+EGCAR CV grids. It is an execution diagnostic, not a performance comparison.
 
 ## Repository layout
 
@@ -19,7 +44,7 @@ organization of https://github.com/cran/ccar3/tree/master/R . The compiled
 In RStudio, replace `YOUR_GITHUB_USERNAME/egcar` with your actual owner/repository:
 
 ```r
-install.packages(c("remotes", "Rcpp", "RcppArmadillo", "future", "future.apply",
+install.packages(c("remotes", "Rcpp", "RcppArmadillo", "RcppEigen", "future", "future.apply",
                    "RGCCA", "PMA", "ggplot2", "RSpectra", "RhpcBLASctl"),
                  repos = "https://cloud.r-project.org")
 remotes::install_github("YOUR_GITHUB_USERNAME/egcar", dependencies = NA,
@@ -33,6 +58,7 @@ GitHub repository's capitalization. Source installation needs an R-compatible
 C++14 build toolchain. On Windows use Rtools matching your R version; on macOS
 use the appropriate command-line build tools. A separate Armadillo installation
 is not needed for the R package: RcppArmadillo supplies its headers.
+RcppEigen supplies the Eigen headers for the small-matrix native branch.
 
 The SGCA initializer and its full four-function dependency closure are bundled.
 No separate SGCA implementation package is needed or installed. RGCCA supplies

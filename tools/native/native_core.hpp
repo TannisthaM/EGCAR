@@ -1,6 +1,12 @@
 #include <armadillo>
 #ifndef EGCAR_CORE_HPP
 #define EGCAR_CORE_HPP
+// EfficientCCA uses SMUT's mapped Eigen multiplication. For small products,
+// use the same computational idea without depending on SMUT or opening a pool.
+#ifndef EIGEN_DONT_PARALLELIZE
+#define EIGEN_DONT_PARALLELIZE
+#endif
+#include <Eigen/Core>
 #include <vector>
 #include <array>
 #include <cmath>
@@ -81,6 +87,104 @@ inline void threshold_entries(const mat& W, double t, mat& Z) {
     double x=W[j]; Z[j]=(x>t)?x-t:((x < -t)?x+t:0.0);
   }
 }
+// Scratch matrices are reused over ADMM iterations. They never alias R inputs.
+struct Workspace { mat target, projected, project_tmp, lift_tmp, correction; };
+// BLAS remains preferable for many large products. The small-product branch
+// avoids BLAS dispatch / operand-copy overhead using column-major Eigen maps.
+// No map or native pointer survives the call, and output never aliases inputs.
+template<bool TransposeA, bool TransposeB>
+inline void multiply_into(const mat& A,const mat& B,mat& out) {
+  const arma::uword nr=TransposeA?A.n_cols:A.n_rows;
+  const arma::uword nc=TransposeB?B.n_rows:B.n_cols;
+  const arma::uword inner=TransposeA?A.n_rows:A.n_cols;
+  const arma::uword largest=std::max(nr,std::max(nc,inner));
+  // Armadillo's tiny fixed-size kernels are cheaper below this range.
+  if(largest>8 && largest<=64) {
+    out.set_size(nr,nc);
+    if(out.n_elem==0) return;
+    if(inner==0) {out.zeros();return;}
+    using Matrix=Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor>;
+    Eigen::Map<const Matrix> left(A.memptr(),A.n_rows,A.n_cols);
+    Eigen::Map<const Matrix> right(B.memptr(),B.n_rows,B.n_cols);
+    Eigen::Map<Matrix> result(out.memptr(),out.n_rows,out.n_cols);
+    if(TransposeA && TransposeB) result.noalias()=left.transpose()*right.transpose();
+    else if(TransposeA) result.noalias()=left.transpose()*right;
+    else if(TransposeB) result.noalias()=left*right.transpose();
+    else result.noalias()=left*right;
+  } else {
+    if(TransposeA && TransposeB) out=A.t()*B.t();
+    else if(TransposeA) out=A.t()*B;
+    else if(TransposeB) out=A*B.t();
+    else out=A*B;
+  }
+}
+inline void project_into(const Problem& p, unsigned e, const mat& A,
+                         mat& out, mat& tmp) {
+  const Edge& z=p.edges[e]; const mat& Qk=p.Q[z.k]; const mat& Ql=p.Q[z.l];
+  if(z.project_left) {multiply_into<true,false>(Qk,A,tmp);multiply_into<false,false>(tmp,Ql,out);}
+  else {multiply_into<false,false>(A,Ql,tmp);multiply_into<true,false>(Qk,tmp,out);}
+}
+inline void lift_into(const Problem& p, unsigned e, const mat& A,
+                      mat& out, mat& tmp) {
+  const Edge& z=p.edges[e]; const mat& Qk=p.Q[z.k]; const mat& Ql=p.Q[z.l];
+  if(z.lift_left) {multiply_into<false,false>(Qk,A,tmp);multiply_into<false,true>(tmp,Ql,out);}
+  else {multiply_into<false,true>(A,Ql,tmp);multiply_into<false,false>(Qk,tmp,out);}
+}
+inline void c_update_into(const Problem& p, unsigned e, double shift,
+                          const mat& denom, mat& Ct, mat& C, Workspace& w) {
+  const Edge& z=p.edges[e];
+  project_into(p,e,w.target,w.projected,w.project_tmp);
+  Ct=(z.St+shift*w.projected)/denom;
+  if(z.full) lift_into(p,e,Ct,C,w.lift_tmp);
+  else {
+    w.correction=Ct-w.projected;
+    lift_into(p,e,w.correction,C,w.lift_tmp);
+    // Keep the full null-space contribution and the previous addition order.
+    for(arma::uword j=0;j<C.n_elem;++j)
+      C[j]=(w.target[j]+z.remainder[j]/shift)+C[j];
+  }
+}
+// Proximal maps, dual updates and full-space residual reductions are fused.
+// Read every old state entry before overwriting it. No coefficient screening.
+template<bool Check>
+inline void entry_step(const mat& C, mat& Z, mat& H, double threshold,
+                       double& rp2,double& rd2,double& nc2,double& nz2,double& ny2) {
+  double rp=0,rd=0,nc=0,nz=0,ny=0;
+  for(arma::uword j=0;j<C.n_elem;++j) {
+    const double c=C[j], oldz=Z[j], w=c+H[j];
+    const double z=(w>threshold)?w-threshold:((w < -threshold)?w+threshold:0.0);
+    const double h=w-z;
+    if(Check) {
+      const double dr=c-z, ds=z-oldz;
+      rp+=dr*dr; rd+=ds*ds; nc+=c*c; nz+=z*z; ny+=h*h;
+    }
+    Z[j]=z; H[j]=h;
+  }
+  if(Check) {rp2+=rp;rd2+=rd;nc2+=nc;nz2+=nz;ny2+=ny;}
+}
+template<bool Check>
+inline void group_step(const mat& C, const mat& Wk, const mat& Wl,
+                       const vec& mk, const vec& ml, mat& Gk, mat& Gl,
+                       mat& Vk, mat& Vl, double& rp2,double& rd2,
+                       double& nc2,double& nz2,double& ny2) {
+  double rpk=0,rpl=0,rd=0,nc=0,nzk=0,nzl=0,ny=0;
+  for(arma::uword j=0;j<C.n_cols;++j) {
+    const double scale_l=ml[j];
+    for(arma::uword i=0;i<C.n_rows;++i) {
+      const arma::uword h=i+j*C.n_rows;
+      const double gk=Wk[h]*mk[i], gl=Wl[h]*scale_l;
+      const double vk=Wk[h]-gk, vl=Wl[h]-gl;
+      if(Check) {
+        const double c=C[h], drk=c-gk, drl=c-gl;
+        const double ds=((gk-Gk[h])+gl)-Gl[h], y=vk+vl;
+        rpk+=drk*drk; rpl+=drl*drl; rd+=ds*ds; nc+=c*c;
+        nzk+=gk*gk; nzl+=gl*gl; ny+=y*y;
+      }
+      Gk[h]=gk; Gl[h]=gl; Vk[h]=vk; Vl[h]=vl;
+    }
+  }
+  if(Check) {rp2+=rpk+rpl;rd2+=rd;nc2+=2.0*nc;nz2+=nzk+nzl;ny2+=ny;}
+}
 inline Result solve(const Problem& p, State s, const Control& ctl, bool group,
                     void (*interrupt)()=nullptr,
                     void (*progress)(int,double,double,double,double)=nullptr) {
@@ -91,6 +195,10 @@ inline Result solve(const Problem& p, State s, const Control& ctl, bool group,
   Result out; out.mu=ctl.mu;
   if(ctl.history) out.history.reserve(ctl.max_iter/ctl.check_every+2);
   std::vector<mat> den(E), Ct(E), Wk(E), Wl(E);
+  Workspace work;  // one grow-to-fit workspace shared by sequential edge updates
+  std::vector<vec> normsq;
+  if(group) { normsq.reserve(p.sizes.size());
+    for(unsigned size:p.sizes) normsq.emplace_back(size,arma::fill::zeros); }
   double previous_shift=-1;
   for(int it=1;it<=ctl.max_iter;++it) {
     if(interrupt && (it==1 || it%64==0)) interrupt();
@@ -103,16 +211,12 @@ inline Result solve(const Problem& p, State s, const Control& ctl, bool group,
     double rp2=0,rd2=0,nc2=0,nz2=0,ny2=0;
     if(!group) {
       for(unsigned e=0;e<E;++e) {
-        mat T=s.Z[e]-s.H[e];
-        s.C[e]=c_update(p,e,T,shift,den[e],Ct[e]);
-        mat W=s.C[e]+s.H[e];
-        mat Zn; threshold_entries(W,ctl.penalty/out.mu,Zn);
-        mat Hn=W-Zn;
-        if(check) {
-          rp2+=sqnorm(s.C[e]-Zn); rd2+=sqnorm(Zn-s.Z[e]);
-          nc2+=sqnorm(s.C[e]); nz2+=sqnorm(Zn); ny2+=sqnorm(Hn);
-        }
-        s.Z[e]=std::move(Zn); s.H[e]=std::move(Hn);
+        work.target=s.Z[e]-s.H[e];
+        c_update_into(p,e,shift,den[e],Ct[e],s.C[e],work);
+        if(check) entry_step<true>(s.C[e],s.Z[e],s.H[e],ctl.penalty/out.mu,
+                                  rp2,rd2,nc2,nz2,ny2);
+        else entry_step<false>(s.C[e],s.Z[e],s.H[e],ctl.penalty/out.mu,
+                               rp2,rd2,nc2,nz2,ny2);
       }
       if(check) {
         out.primal=std::sqrt(rp2); out.dual=out.mu*std::sqrt(rd2);
@@ -120,12 +224,11 @@ inline Result solve(const Problem& p, State s, const Control& ctl, bool group,
         out.eps_dual=std::sqrt(p.q)*ctl.abs_tol+ctl.rel_tol*out.mu*std::sqrt(ny2);
       }
     } else {
-      std::vector<vec> normsq;
-      for(unsigned size:p.sizes) normsq.push_back(vec(size,arma::fill::zeros));
+      for(vec& v:normsq) v.zeros();
       for(unsigned e=0;e<E;++e) {
         const Edge& z=p.edges[e];
-        mat T=0.5*(s.Gk[e]-s.Vk[e]+s.Gl[e]-s.Vl[e]);
-        s.C[e]=c_update(p,e,T,shift,den[e],Ct[e]);
+        work.target=0.5*(s.Gk[e]-s.Vk[e]+s.Gl[e]-s.Vl[e]);
+        c_update_into(p,e,shift,den[e],Ct[e],s.C[e],work);
         Wk[e]=s.C[e]+s.Vk[e]; Wl[e]=s.C[e]+s.Vl[e];
         normsq[z.k]+=arma::sum(arma::square(Wk[e]),1);
         normsq[z.l]+=arma::sum(arma::square(Wl[e]),0).t();
@@ -138,17 +241,10 @@ inline Result solve(const Problem& p, State s, const Control& ctl, bool group,
       }
       for(unsigned e=0;e<E;++e) {
         const Edge& z=p.edges[e];
-        mat Gkn=Wk[e]; Gkn.each_col()%=normsq[z.k];
-        mat Gln=Wl[e]; Gln.each_row()%=normsq[z.l].t();
-        mat Vkn=Wk[e]-Gkn, Vln=Wl[e]-Gln;
-        if(check) {
-          rp2+=sqnorm(s.C[e]-Gkn)+sqnorm(s.C[e]-Gln);
-          rd2+=sqnorm(Gkn-s.Gk[e]+Gln-s.Gl[e]);
-          nc2+=2.0*sqnorm(s.C[e]); nz2+=sqnorm(Gkn)+sqnorm(Gln);
-          ny2+=sqnorm(Vkn+Vln);
-        }
-        s.Gk[e]=std::move(Gkn); s.Gl[e]=std::move(Gln);
-        s.Vk[e]=std::move(Vkn); s.Vl[e]=std::move(Vln);
+        if(check) group_step<true>(s.C[e],Wk[e],Wl[e],normsq[z.k],normsq[z.l],
+          s.Gk[e],s.Gl[e],s.Vk[e],s.Vl[e],rp2,rd2,nc2,nz2,ny2);
+        else group_step<false>(s.C[e],Wk[e],Wl[e],normsq[z.k],normsq[z.l],
+          s.Gk[e],s.Gl[e],s.Vk[e],s.Vl[e],rp2,rd2,nc2,nz2,ny2);
       }
       if(check) {
         out.primal=std::sqrt(rp2); out.dual=out.mu*std::sqrt(rd2);

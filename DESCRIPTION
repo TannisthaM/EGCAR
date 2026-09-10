@@ -1,7 +1,7 @@
 Package: egcar
 Type: Package
 Title: Accelerated Sparse Generalized Correlation Analysis via Regression
-Version: 0.2.0
+Version: 0.2.1
 Authors@R: c(person("EGCAR", "Contributors", role = c("aut", "cre"),
     email = "maintainer@example.org"),
     person("Claire", "Donnat", role = "cph",
@@ -19,7 +19,7 @@ License: GPL-3
 Encoding: UTF-8
 Depends: R (>= 4.0.0)
 Imports: Rcpp, stats, utils
-LinkingTo: Rcpp, RcppArmadillo
+LinkingTo: Rcpp, RcppArmadillo, RcppEigen
 Suggests: future, future.apply, RSpectra, RhpcBLASctl, RGCCA, PMA,
     ggplot2, remotes, testthat (>= 3.0.0), roxygen2
 SystemRequirements: C++14

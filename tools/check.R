@@ -6,7 +6,7 @@
   path <- normalizePath(if (length(args)) args[[1L]] else ".", mustWork = TRUE)
   description <- file.path(path, "DESCRIPTION")
   if (!file.exists(description)) stop("Not an R package root: ", path)
-  required <- c("Rcpp", "RcppArmadillo", "testthat")
+  required <- c("Rcpp", "RcppArmadillo", "RcppEigen", "testthat")
   missing <- required[!vapply(required, requireNamespace, logical(1), quietly = TRUE)]
   if (length(missing)) stop("Install the check dependencies first: ", paste(missing, collapse = ", "))
   for (dir in c("R", "inst/examples", "inst/validation", "tests")) {

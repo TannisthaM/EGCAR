@@ -1,3 +1,6 @@
+> Historical validation report for version 0.2.0. For the current speed-only
+> revision, see SPEED_VALIDATION_021.md in this directory.
+
 # Validation of egcar 0.2.0 and the three matching rewrites
 
 ## Executed in the creation environment
