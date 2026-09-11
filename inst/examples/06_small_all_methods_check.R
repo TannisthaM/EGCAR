@@ -1,9 +1,9 @@
 # One small configuration, all ten methods, five shared folds / five CV workers.
-# Install egcar >= 0.2.1 and its optional comparison/parallel dependencies first.
+# Install egcar >= 0.2.4 and its optional comparison/parallel dependencies first.
 required <- c("egcar", "RcppEigen", "future", "future.apply", "RGCCA", "PMA")
 missing <- required[!vapply(required, requireNamespace, logical(1), quietly = TRUE)]
 if (length(missing)) stop("Install these packages first: ", paste(missing, collapse = ", "))
-stopifnot(utils::packageVersion("egcar") >= "0.2.1")
+stopifnot(utils::packageVersion("egcar") >= "0.2.4")
 library(egcar)
 
 n <- 60L

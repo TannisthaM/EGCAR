@@ -4,7 +4,7 @@
 # Defaults: signal 0.8, ranks 1/2/5, five folds, five CV workers, small grids.
 # A serial-only diagnostic: Sys.setenv(EGCAR_MATRIX_CHECK_WORKERS = "1")
 if (!requireNamespace("egcar", quietly = TRUE)) stop("Install egcar first.")
-if (utils::packageVersion("egcar") < "0.2.2")
+if (utils::packageVersion("egcar") < "0.2.4")
   stop("This check requires the patched egcar 0.2.2 package. Reinstall and restart R.")
 local({
   workers <- suppressWarnings(as.integer(Sys.getenv("EGCAR_MATRIX_CHECK_WORKERS", "5")))

@@ -43,12 +43,36 @@ fit_l21_admm <- function(prep, lambda_g, mu_g = 1, max_iter = 2000L,
   out
 }
 
+# Coerce one edge block to its mathematically known p_k x p_l shape.
+# A dimensionless numeric vector is accepted only when its length is exactly
+# p_k*p_l. R and Armadillo are both column-major, so matrix() restores the
+# legacy nested-Rcpp output without reordering values. Any other shape fails.
+egcar_edge_matrix <- function(z, A, e, label = "edge block") {
+  k <- z$edge_k[[e]]; l <- z$edge_l[[e]]
+  nr <- as.integer(z$p_list[[k]]); nc <- as.integer(z$p_list[[l]])
+  expected <- c(nr, nc)
+  if (is.matrix(A) && is.numeric(A) && identical(dim(A), expected)) return(A)
+  if (is.numeric(A) && is.null(dim(A)) && length(A) == nr * nc) {
+    return(matrix(as.numeric(A), nrow = nr, ncol = nc))
+  }
+  observed <- if (is.null(dim(A))) {
+    paste0(typeof(A), " object of length ", length(A), " with no dim attribute")
+  } else {
+    paste0(typeof(A), " object with dimensions ", paste(dim(A), collapse = " x "))
+  }
+  stop("EGCAR matrix interface: ", label, " for edge ", k, "_", l,
+       " must be a numeric ", nr, " x ", nc, " matrix; got ", observed, ".",
+       call. = FALSE)
+}
+
 egcar_view_copies <- function(z, left, right) {
   p <- sum(z$p_list)
   out <- lapply(z$p_list, function(pk) matrix(0, pk, p - pk))
   for (e in seq_along(z$edge_k)) {
-    out[[z$edge_k[[e]]]][, z$cols_k[[e]]] <- left[[e]]
-    out[[z$edge_l[[e]]]][, z$cols_l[[e]]] <- t(right[[e]])
+    L <- egcar_edge_matrix(z, left[[e]], e, "left endpoint copy")
+    R <- egcar_edge_matrix(z, right[[e]], e, "right endpoint copy")
+    out[[z$edge_k[[e]]]][, z$cols_k[[e]]] <- L
+    out[[z$edge_l[[e]]]][, z$cols_l[[e]]] <- t(R)
   }
   out
 }
@@ -57,8 +81,10 @@ egcar_group_norms <- function(z, left, right = left) {
   ans <- lapply(z$p_list, numeric)
   for (e in seq_along(z$edge_k)) {
     k <- z$edge_k[[e]]; l <- z$edge_l[[e]]
-    ans[[k]] <- ans[[k]] + rowSums(left[[e]] * left[[e]])
-    ans[[l]] <- ans[[l]] + colSums(right[[e]] * right[[e]])
+    L <- egcar_edge_matrix(z, left[[e]], e, "left group block")
+    R <- egcar_edge_matrix(z, right[[e]], e, "right group block")
+    ans[[k]] <- ans[[k]] + rowSums(L * L)
+    ans[[l]] <- ans[[l]] + colSums(R * R)
   }
   lapply(ans, sqrt)
 }

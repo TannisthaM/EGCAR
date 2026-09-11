@@ -143,7 +143,11 @@ egcar_run_solver <- function(prep, ctl, init, group, verbose = FALSE) {
   } else {
     egcar_solve_R(z, s, ctl, group, verbose)
   }
-  if (EGCAR_BACKEND == "cpp" && !identical(raw$matrix_api, 2L))
+  # Defensive compatibility layer: restore only a missing dim attribute using
+  # the exact edge dimensions known from the prepared problem. The current
+  # native API already returns matrices explicitly, so this is normally a no-op.
+  raw$state <- .egcar_normalize_solver_state(raw$state, z, group)
+  if (EGCAR_BACKEND == "cpp" && !is.null(raw$matrix_api) && !identical(raw$matrix_api, 2L))
     stop("EGCAR native matrix API mismatch. Reinstall the patched egcar source ",
          "package and restart R, including CV workers.", call. = FALSE)
   .egcar_check_solver_state(raw$state, z, group, EGCAR_BACKEND)

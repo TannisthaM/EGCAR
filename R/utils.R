@@ -103,6 +103,29 @@
   out
 }
 
+# Normalize solver state at the R boundary. This additionally supports legacy
+# nested Rcpp output in which an arma::mat lost only its dim attribute. The
+# dimensions are not guessed: each edge has a unique known p_k x p_l shape.
+.egcar_normalize_solver_state <- function(state, context, group) {
+  fields <- if (group) c("C", "Gk", "Gl", "Vk", "Vl") else c("C", "Z", "H")
+  if (!is.list(state)) return(state)
+  count <- length(context$edge_k)
+  for (nm in intersect(fields, names(state))) {
+    blocks <- state[[nm]]
+    if (!is.list(blocks) || length(blocks) != count) next
+    state[[nm]] <- lapply(seq_len(count), function(j) {
+      k <- context$edge_k[[j]]; l <- context$edge_l[[j]]
+      nr <- as.integer(context$p_list[[k]]); nc <- as.integer(context$p_list[[l]])
+      A <- blocks[[j]]
+      if (is.matrix(A) && is.numeric(A) && identical(dim(A), c(nr, nc))) return(A)
+      if (is.numeric(A) && is.null(dim(A)) && length(A) == nr * nc)
+        return(matrix(as.numeric(A), nrow = nr, ncol = nc))
+      A
+    })
+  }
+  state
+}
+
 # Validate the native/optimized solver boundary before loading extraction.
 .egcar_check_solver_state <- function(state, context, group, backend) {
   fields <- if (group) c("C", "Gk", "Gl", "Vk", "Vl") else c("C", "Z", "H")

@@ -1,3 +1,9 @@
+# egcar 0.2.4
+
+* Hardened the optimized/native solver boundary against legacy nested Rcpp conversions that may return an edge matrix as a dimensionless numeric vector. Solver state is now normalized to the known edge dimensions before any row/column reductions.
+* `egcar_group_norms()` and `egcar_view_copies()` now validate/restore edge-matrix dimensions defensively. This is a compatibility safeguard only; numerical values, column-major ordering, ADMM equations, penalties, CV rules, and estimators are unchanged.
+* The small all-methods and matrix-interface examples now require 0.2.4.
+
 # egcar 0.2.3
 
 * Memory-first experiment defaults: full fitted objects, fold-level CV tables, full loading-plot data, and per-configuration loading PDFs are no longer retained/generated unless explicitly requested.
