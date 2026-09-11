@@ -3,20 +3,26 @@
 fit_l11_admm <- function(prep, rho_e, mu = 1, max_iter = 2000L,
     abs_tol = 1e-5, rel_tol = 1e-4, adaptive_mu = TRUE, balance_ratio = 10,
     scale_factor = 2, adapt_every = 10L, entry_zero_tol = 1e-10,
-    init = NULL, verbose = FALSE, check_every = 1L) {
-  if (EGCAR_BACKEND == "reference") return(fit_l11_admm_reference(
-    prep, rho_e, mu, max_iter, abs_tol, rel_tol, adaptive_mu, balance_ratio,
-    scale_factor, adapt_every, entry_zero_tol, init, verbose, check_every))
+    init = NULL, verbose = FALSE, check_every = 1L, keep_state = TRUE) {
+  if (EGCAR_BACKEND == "reference") {
+    out <- fit_l11_admm_reference(
+      prep, rho_e, mu, max_iter, abs_tol, rel_tol, adaptive_mu, balance_ratio,
+      scale_factor, adapt_every, entry_zero_tol, init, verbose, check_every)
+    if (!keep_state) out[c("C", "Z", "H")] <- NULL
+    return(out)
+  }
   ctl <- egcar_controls(rho_e, mu, max_iter, abs_tol, rel_tol, adaptive_mu,
     balance_ratio, scale_factor, adapt_every, check_every, FALSE)
   a <- egcar_run_solver(prep, ctl, init, FALSE, verbose)
   s <- a$state; keys <- a$context$keys
   for (nm in c("C", "Z", "H")) names(s[[nm]]) <- keys
   C_hat <- lapply(s$Z, function(A) { A[abs(A) < entry_zero_tol] <- 0; A })
-  list(C_hat = C_hat, C = s$C, Z = s$Z, H = s$H,
+  out <- list(C_hat = C_hat,
     converged = a$converged, iterations = a$iterations, primal_residual = a$primal,
     dual_residual = a$dual, eps_primal = a$eps_primal, eps_dual = a$eps_dual,
     rho_e = rho_e, lambda_g = 0, mu_z = a$mu)
+  if (keep_state) out[c("C", "Z", "H")] <- list(s$C, s$Z, s$H)
+  out
 }
 
 egcar_solve_R <- function(z, s, ctl, group, verbose = FALSE) {
@@ -137,12 +143,16 @@ egcar_run_solver <- function(prep, ctl, init, group, verbose = FALSE) {
   } else {
     egcar_solve_R(z, s, ctl, group, verbose)
   }
+  if (EGCAR_BACKEND == "cpp" && !identical(raw$matrix_api, 2L))
+    stop("EGCAR native matrix API mismatch. Reinstall the patched egcar source ",
+         "package and restart R, including CV workers.", call. = FALSE)
+  .egcar_check_solver_state(raw$state, z, group, EGCAR_BACKEND)
   raw$context <- z
   raw
 }
 
 .egcar_solve_one <- function(prep, penalty, lambda, control, e, init = NULL,
-                             cv = FALSE, history = control$keep_history) {
+                             cv = FALSE, history = control$keep_history, keep_state = TRUE) {
   init <- .egcar_validate_init(init, prep, penalty)
   args <- list(prep = prep, max_iter = if (cv) control$max_iter_cv else control$max_iter,
     abs_tol = control$abs_tol, rel_tol = control$rel_tol,
@@ -152,11 +162,12 @@ egcar_run_solver <- function(prep, ctl, init, group, verbose = FALSE) {
     verbose = control$verbose,
     check_every = if (cv) control$check_every_cv else control$check_every)
   if (penalty == "l11") {
-    args$rho_e <- lambda; args$mu <- control$mu
+    args$rho_e <- lambda; args$mu <- control$mu; args$keep_state <- keep_state
     do.call(e$fit_l11_admm, args)
   } else {
     args$lambda_g <- lambda; args$mu_g <- control$mu
     args$group_zero_tol <- control$group_zero_tol; args$keep_history <- history
+    args$keep_state <- keep_state
     do.call(e$fit_l21_admm, args)
   }
 }

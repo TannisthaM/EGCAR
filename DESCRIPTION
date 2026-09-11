@@ -1,7 +1,7 @@
 Package: egcar
 Type: Package
 Title: Accelerated Sparse Generalized Correlation Analysis via Regression
-Version: 0.2.1
+Version: 0.2.3
 Authors@R: c(person("EGCAR", "Contributors", role = c("aut", "cre"),
     email = "maintainer@example.org"),
     person("Claire", "Donnat", role = "cph",

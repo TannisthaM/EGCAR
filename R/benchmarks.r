@@ -248,9 +248,9 @@ cross_validate_loading_grid <- function(
   seed_for <- function(f) as.integer((as.double(seed) + 1009 * f) %% 2147483646 + 1)
   tuning_start <- proc.time()[[3L]]
 
-  per_fold_fun <- function(f) {
+  per_fold_fun <- function(fo) {
     set_blas_threads_one()
-    fo <- fold_objects[[f]]
+    f <- fo$fold
     context_error <- NULL
     context <- tryCatch(
       prepare_context(fo$train_views, fo$prep, final = FALSE),
@@ -292,9 +292,9 @@ cross_validate_loading_grid <- function(
   }
 
   per_fold <- if (isTRUE(parallel_folds) && PARALLEL_CV) {
-    parallel_map_candidates(seq_len(Kfold), per_fold_fun)
+    parallel_map_candidates(fold_objects, per_fold_fun)
   } else {
-    lapply(seq_len(Kfold), per_fold_fun)
+    lapply(fold_objects, per_fold_fun)
   }
   fold_table <- do.call(rbind, per_fold)
   cv_table <- summarize_loading_cv(grid, fold_table, Kfold)
@@ -315,7 +315,9 @@ cross_validate_loading_grid <- function(
     msgs <- unique(stats::na.omit(fold_table$error_message))
     return(list(
       L = NULL, loading = NULL, fit_full = NULL,
-      cv_table = cv_table, cv_fold_table = fold_table, best = NULL,
+      cv_table = cv_table,
+      cv_fold_table = if (isTRUE(get0("RETAIN_CV_FOLD_TABLES", inherits = TRUE, ifnotfound = TRUE))) fold_table else data.frame(),
+      best = NULL,
       fit_time = 0, tuning_time = tuning_time, time = tuning_time,
       status = "no_valid_cv", converged = FALSE, iterations = NA_integer_,
       error = paste0("No ", label, " candidate had a finite loss on every fold.",
@@ -333,6 +335,8 @@ cross_validate_loading_grid <- function(
     set.seed(seed_for(Kfold + 1L))
     fitted <- fit_candidate(context, best, final = TRUE)
     fitted$L <- validate_loading_matrix(fitted$L, p, rank)
+    if (!isTRUE(get0("RETAIN_BENCHMARK_FITS", inherits = TRUE, ifnotfound = TRUE)))
+      fitted$fit <- NULL
     fitted
   }, warning = function(w) {
     final_notes <<- unique(c(final_notes, conditionMessage(w)))
@@ -346,8 +350,10 @@ cross_validate_loading_grid <- function(
   list(
     L = final_out$L,
     loading = if (!bad) list(valid = TRUE, L = final_out$L) else NULL,
-    fit_full = final_out$fit %||% NULL,
-    cv_table = cv_table, cv_fold_table = fold_table, best = best,
+    fit_full = if (isTRUE(get0("RETAIN_BENCHMARK_FITS", inherits = TRUE, ifnotfound = TRUE))) final_out$fit %||% NULL else NULL,
+    cv_table = cv_table,
+    cv_fold_table = if (isTRUE(get0("RETAIN_CV_FOLD_TABLES", inherits = TRUE, ifnotfound = TRUE))) fold_table else data.frame(),
+    best = best,
     fit_time = fit_time, tuning_time = tuning_time,
     time = fit_time + tuning_time,
     status = status, converged = conv,

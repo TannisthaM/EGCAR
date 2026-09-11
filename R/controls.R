@@ -40,8 +40,8 @@ egcar_control <- function(
     row_threshold = 1e-4, covariance_ridge = 1e-4,
     group_zero_tol = 1e-8, entry_zero_tol = 1e-10,
     partial_eigen = TRUE, partial_eigen_min = 128L,
-    loading_cache_max = 128L, keep_history = FALSE,
-    keep_full_C = TRUE, blas_threads = 1L, verbose = FALSE) {
+    loading_cache_max = 4L, keep_history = FALSE,
+    keep_full_C = FALSE, blas_threads = 1L, verbose = FALSE) {
   if (length(backend) == 1L && identical(backend, "r")) backend <- "R"
   backend <- match.arg(backend)
   for (nm in c("max_iter", "max_iter_cv", "adapt_every", "check_every",

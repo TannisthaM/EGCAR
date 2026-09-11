@@ -33,7 +33,7 @@ run_egcar_experiments <- function(
     multicca_niter = config$multicca_niter, multicca_backend = config$multicca_backend,
     align_signs = config$align_external_block_signs)
   e <- .egcar_engine(ctl, bm, workers)
-  for (nm in c("evaluate_method", "fit_estimator", "cross_validate_penalties", "annotate_cv_table", "run_external_benchmarks", "summarize_metric", "save_metric_plot", "make_plot_set", "make_all_plots", "loading_euclidean_basis", "plot_loading_matrix", "save_multipage_loading_pdf", "make_loading_visualizations", "save_checkpoint")) {
+  for (nm in c("evaluate_method", "fit_estimator", "cross_validate_penalties", "annotate_cv_table", "run_external_benchmarks", "summarize_metric", "save_metric_plot", "make_plot_set", "make_all_plots", "loading_euclidean_basis", "plot_loading_matrix", "save_multipage_loading_pdf", "make_loading_visualizations", "save_compact_loadings", "save_checkpoint")) {
     fn <- get(nm, envir = environment(run_egcar_experiments), inherits = FALSE)
     environment(fn) <- e
     assign(nm, fn, envir = e)
@@ -43,14 +43,13 @@ run_egcar_experiments <- function(
   e$OUT_DIR <- output_dir; e$N_WORKERS_REQUESTED <- requested_workers
   e$N_WORKERS <- e$CV_WORKERS <- workers; e$PARALLEL_CV <- workers > 1L
   e$EGCAR_BACKEND <- e$EGCAR_MASTER_BACKEND <- tolower(backend)
+  e$RETAIN_CV_FOLD_TABLES <- isTRUE(config$save_cv_fold_results)
+  e$RETAIN_BENCHMARK_FITS <- isTRUE(config$retain_benchmark_fits)
   e$EGCAR_PARTIAL_EIGEN <- !identical(Sys.getenv("EGCAR_PARTIAL_EIGEN", "1"), "0")
   # Each worker loads the installed DLL by namespace; no external pointer is exported.
   .egcar_with_seed(NULL, .egcar_with_threads(1L, .egcar_with_workers(workers, {
     old_options <- options(stringsAsFactors = FALSE)
     on.exit(options(old_options), add = TRUE)
-    old_max <- getOption("future.globals.maxSize")
-    on.exit(options(future.globals.maxSize = old_max), add = TRUE)
-    options(future.globals.maxSize = max(4 * 1024^3, old_max %||% 0))
     start <- proc.time()[[3L]]
     worker_backends <- if (workers > 1L) unlist(e$parallel_map_candidates(seq_len(workers),
       function(i) { loadNamespace("egcar"); tolower(backend) }), use.names = FALSE) else tolower(backend)

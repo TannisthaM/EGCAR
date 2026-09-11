@@ -312,6 +312,24 @@ static std::vector<arma::mat> egcar_readonly_list(Rcpp::List x) {
   for(int i=0;i<x.size();++i) ans.push_back(egcar_readonly_matrix(x[i]));
   return ans;
 }
+// Construct R matrices explicitly at the nested-container boundary. Do not
+// rely on generic wrapping of std::vector<arma::mat> to retain dim attributes.
+// Both Armadillo and R use column-major storage; this is an owning copy, with
+// no transpose and no pointer into the soon-to-be-destroyed solver state.
+static Rcpp::List egcar_matrix_list_to_R(const std::vector<arma::mat>& values) {
+  Rcpp::List out(values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    const arma::mat& A = values[i];
+    if (A.n_rows > static_cast<arma::uword>(std::numeric_limits<int>::max()) ||
+        A.n_cols > static_cast<arma::uword>(std::numeric_limits<int>::max()))
+      Rcpp::stop("Native output matrix dimensions exceed R's matrix limits.");
+    Rcpp::NumericMatrix block(static_cast<int>(A.n_rows),
+                              static_cast<int>(A.n_cols));
+    if (A.n_elem > 0) std::copy(A.begin(), A.end(), block.begin());
+    out[i] = block;
+  }
+  return out;
+}
 static void egcar_interrupt() { Rcpp::checkUserInterrupt(); }
 static void egcar_progress(int it,double rp,double rd,double ep,double ed) {
   Rcpp::Rcout << "  iter=" << it << " primal=" << rp << " (" << ep << ") dual=" << rd << " (" << ed << ")\n";
@@ -381,14 +399,25 @@ Rcpp::List egcar_native_solve(Rcpp::List context, Rcpp::List state,
   else {check_state(s.Z);check_state(s.H);}
   Result fit=solve(p,std::move(s),ctl,group,egcar_interrupt,verbose?egcar_progress:nullptr);
   Rcpp::List outstate;
-  if(group) outstate=Rcpp::List::create(Rcpp::_ ["C"]=fit.state.C,Rcpp::_ ["Gk"]=fit.state.Gk,
-      Rcpp::_ ["Gl"]=fit.state.Gl,Rcpp::_ ["Vk"]=fit.state.Vk,Rcpp::_ ["Vl"]=fit.state.Vl);
-  else outstate=Rcpp::List::create(Rcpp::_ ["C"]=fit.state.C,Rcpp::_ ["Z"]=fit.state.Z,Rcpp::_ ["H"]=fit.state.H);
+  if (group) {
+    outstate = Rcpp::List::create(
+      Rcpp::_["C"] = egcar_matrix_list_to_R(fit.state.C),
+      Rcpp::_["Gk"] = egcar_matrix_list_to_R(fit.state.Gk),
+      Rcpp::_["Gl"] = egcar_matrix_list_to_R(fit.state.Gl),
+      Rcpp::_["Vk"] = egcar_matrix_list_to_R(fit.state.Vk),
+      Rcpp::_["Vl"] = egcar_matrix_list_to_R(fit.state.Vl));
+  } else {
+    outstate = Rcpp::List::create(
+      Rcpp::_["C"] = egcar_matrix_list_to_R(fit.state.C),
+      Rcpp::_["Z"] = egcar_matrix_list_to_R(fit.state.Z),
+      Rcpp::_["H"] = egcar_matrix_list_to_R(fit.state.H));
+  }
   Rcpp::NumericMatrix hist(fit.history.size(),7);
   for(unsigned i=0;i<fit.history.size();++i) for(unsigned j=0;j<7;++j) hist(i,j)=fit.history[i][j];
   if(!std::isfinite(fit.primal)||!std::isfinite(fit.dual)) Rcpp::warning("ADMM produced a non-finite residual.");
   return Rcpp::List::create(Rcpp::_ ["state"]=outstate,Rcpp::_ ["converged"]=fit.converged,
       Rcpp::_ ["iterations"]=fit.iterations,Rcpp::_ ["primal"]=fit.primal,Rcpp::_ ["dual"]=fit.dual,
       Rcpp::_ ["eps_primal"]=fit.eps_primal,Rcpp::_ ["eps_dual"]=fit.eps_dual,
-      Rcpp::_ ["mu"]=fit.mu,Rcpp::_ ["history"]=hist);
+      Rcpp::_ ["mu"]=fit.mu,Rcpp::_ ["history"]=hist,
+      Rcpp::_ ["matrix_api"]=2);
 }

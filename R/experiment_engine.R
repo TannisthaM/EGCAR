@@ -70,20 +70,23 @@ evaluate_method <- function(
 }
 
 fit_estimator <- function(prep, rho_e, lambda_g, max_iter, keep_history = FALSE,
-                           init = NULL, check_every = 1L, l21_only = FALSE) {
+                           init = NULL, check_every = 1L, l21_only = FALSE,
+                           keep_state = TRUE) {
   if (isTRUE(l21_only)) {
     if (length(rho_e) != 1L || !is.finite(rho_e) || rho_e != 0)
       stop("L21-only EGCAR requires rho_e = 0.")
     return(fit_l21_admm(prep, lambda_g, mu_g = MU_G, max_iter = max_iter,
       abs_tol = ABS_TOL, rel_tol = REL_TOL, adaptive_mu = ADAPTIVE_MU,
       group_zero_tol = GROUP_ZERO_TOL, entry_zero_tol = ENTRY_ZERO_TOL,
-      init = init, check_every = check_every, keep_history = keep_history))
+      init = init, check_every = check_every, keep_history = keep_history,
+      keep_state = keep_state))
   }
   if (length(lambda_g) != 1L || !is.finite(lambda_g) || lambda_g != 0)
     stop("L11-only EGCAR requires lambda_g = 0; combined penalties are not supported.")
   fit_l11_admm(prep, rho_e, mu = MU_Z, max_iter = max_iter,
     abs_tol = ABS_TOL, rel_tol = REL_TOL, adaptive_mu = ADAPTIVE_MU,
-    entry_zero_tol = ENTRY_ZERO_TOL, init = init, check_every = check_every)
+    entry_zero_tol = ENTRY_ZERO_TOL, init = init, check_every = check_every,
+    keep_state = keep_state)
 }
 
 cross_validate_penalties <- function(
@@ -98,9 +101,9 @@ cross_validate_penalties <- function(
   if (nfold < 2L) stop("At least two shared folds are required.")
   path_order <- order(grid, decreasing = TRUE)
   tuning_start <- proc.time()[[3L]]
-  per_fold <- parallel_map_candidates(seq_len(nfold), function(f) {
+  per_fold <- parallel_map_candidates(fold_objects, function(fo) {
     set_blas_threads_one()
-    fo <- fold_objects[[f]]
+    f <- fo$fold
     fo$prep$loading_factor_cache <- new.env(parent = emptyenv())
     previous <- NULL
     rows <- vector("list", length(grid))
@@ -144,7 +147,8 @@ cross_validate_penalties <- function(
   tuning_time <- proc.time()[[3L]] - tuning_start
   missing_fit <- list(C_hat = NULL, converged = FALSE, iterations = NA_integer_)
   if (is.na(best_index)) {
-    return(list(fit = missing_fit, loading = NULL, cv_table = table, cv_fold_table = fold_table,
+    return(list(fit = missing_fit, loading = NULL, cv_table = table,
+      cv_fold_table = if (isTRUE(SAVE_CV_FOLD_RESULTS)) fold_table else data.frame(),
       best = NULL, rho_e = if (group) 0 else NA_real_, lambda_g = if (group) NA_real_ else 0,
       fit_time = 0, tuning_time = tuning_time, status = "no_valid_cv",
       error = "No positive CV candidate gave a finite requested-rank score on every fold."))
@@ -152,19 +156,23 @@ cross_validate_penalties <- function(
   best <- table[best_index, , drop = FALSE]
   start <- proc.time()[[3L]]
   fit <- tryCatch(fit_estimator(full_prep, best$rho_e[[1L]], best$lambda_g[[1L]],
-    max_iter_final, keep_history = group, l21_only = group),
+    max_iter_final, keep_history = FALSE, l21_only = group,
+    keep_state = isTRUE(SAVE_FITS)),
     error = function(e) list(error = conditionMessage(e)))
   fit_time <- proc.time()[[3L]] - start
   if (is.null(fit$C_hat)) return(list(fit = missing_fit, loading = NULL,
-    cv_table = table, cv_fold_table = fold_table, best = best, rho_e = best$rho_e[[1L]],
+    cv_table = table,
+    cv_fold_table = if (isTRUE(SAVE_CV_FOLD_RESULTS)) fold_table else data.frame(),
+    best = best, rho_e = best$rho_e[[1L]],
     lambda_g = best$lambda_g[[1L]], fit_time = fit_time, tuning_time = tuning_time,
     status = "refit_error", error = fit$error))
   loading <- tryCatch(egcar_loading_from_operator(full_prep, fit$C_hat, rank,
-    ROW_THRESHOLD, COVARIANCE_RIDGE, require_positive = TRUE),
+    ROW_THRESHOLD, COVARIANCE_RIDGE, require_positive = TRUE, keep_full_C = FALSE),
     error = function(e) list(valid = FALSE, reason = conditionMessage(e)))
   status <- if (!isTRUE(loading$valid)) "invalid_loading" else
     if (!isTRUE(fit$converged)) "not_converged" else "ok"
-  list(fit = fit, loading = loading, cv_table = table, cv_fold_table = fold_table,
+  list(fit = fit, loading = loading, cv_table = table,
+    cv_fold_table = if (isTRUE(SAVE_CV_FOLD_RESULTS)) fold_table else data.frame(),
     best = best, rho_e = best$rho_e[[1L]], lambda_g = best$lambda_g[[1L]],
     tuning_time = tuning_time, fit_time = fit_time, status = status,
     error = if (!isTRUE(loading$valid)) loading$reason else
@@ -302,9 +310,6 @@ make_plot_set <- function(results, omit_oracle1 = FALSE) {
   output_dir <- file.path(OUT_DIR, subdir)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
-  utils::write.csv(
-    results, file.path(output_dir, "plot_data.csv"), row.names = FALSE
-  )
 
   for (r in sort(unique(results$rank))) {
     # SGCA/RGCCA/SGCCA/MultiCCA estimate loadings rather than C, so they appear in the
@@ -403,8 +408,8 @@ make_loading_visualizations <- function(
   records <- setNames(vector("list", length(display_order)), display_order)
   records[[truth_name]] <- list(
     valid = TRUE, raw = population$Lstar, Q = Qtrue, aligned = Qtrue,
-    rotation = diag(rank), projector = Ptrue, projector_difference = matrix(0, p, p),
-    importance = rowSums(Qtrue * Qtrue), status = "population truth",
+    rotation = diag(rank), importance = rowSums(Qtrue * Qtrue),
+    status = "population truth",
     error = NA_character_, converged = NA, alignment_error = 0, projector_error = 0
   )
   for (label in methods) {
@@ -421,18 +426,17 @@ make_loading_visualizations <- function(
       sv <- svd(crossprod(Q, Qtrue), nu = rank, nv = rank)
       rotation <- tcrossprod(sv$u, sv$v)
       aligned <- Q %*% rotation
-      P <- tcrossprod(Q)
+      projector_error <- sqrt(max(0, 2 * rank - 2 * sum(crossprod(Q, Qtrue)^2)))
       list(valid = TRUE, raw = L, Q = Q, aligned = aligned,
-           rotation = rotation, projector = P, projector_difference = P - Ptrue,
-           importance = rowSums(Q * Q), status = status, converged = conv,
+           rotation = rotation, importance = rowSums(Q * Q),
+           status = status, converged = conv,
            alignment_error = frob(aligned - Qtrue),
-           projector_error = frob(P - Ptrue), error = NA_character_)
+           projector_error = projector_error, error = NA_character_)
     }, error = function(e) list(
       valid = FALSE, raw = tryCatch(plot_loading_matrix(loadings[[label]]),
                                     error = function(e) NULL),
       Q = matrix(NA_real_, p, rank), aligned = matrix(NA_real_, p, rank),
-      rotation = NULL, projector = matrix(NA_real_, p, p),
-      projector_difference = matrix(NA_real_, p, p), importance = rep(NA_real_, p),
+      rotation = NULL, importance = rep(NA_real_, p),
       status = status, converged = conv, alignment_error = NA_real_,
       projector_error = NA_real_, error = conditionMessage(e)
     ))
@@ -448,12 +452,13 @@ make_loading_visualizations <- function(
       error_message = z$error, stringsAsFactors = FALSE)
   }))
   utils::write.csv(summary, file.path(output_dir, "loading_diagnostics.csv"), row.names = FALSE)
-  # Save everything needed to reproduce these displays without refitting.
-  saveRDS(list(raw_loadings = loadings, population = population, records = records,
-               rank = rank, n = n, rep_id = rep_id, fit_results = fit_results,
-               normalization = "global Euclidean orthonormal basis",
-               alignment = "one global orthogonal Procrustes rotation for display only"),
-          file.path(output_dir, "loading_plot_data.rds"))
+  if (isTRUE(SAVE_LOADING_DATA)) {
+    saveRDS(list(raw_loadings = loadings, population = population, records = records,
+                 rank = rank, n = n, rep_id = rep_id, fit_results = fit_results,
+                 normalization = "global Euclidean orthonormal basis",
+                 alignment = "one global orthogonal Procrustes rotation for display only"),
+            file.path(output_dir, "loading_plot_data.rds"), compress = "xz")
+  }
   variable <- seq_len(p)
   view <- factor(rep(paste0("View ", seq_len(K)), times = pp),
                  levels = paste0("View ", seq_len(K)))
@@ -477,8 +482,10 @@ make_loading_visualizations <- function(
       aligned = as.vector(records[[label]]$aligned),
       true_normalized = as.vector(Qtrue), stringsAsFactors = FALSE)
   }))
-  utils::write.csv(coefficient_df, file.path(output_dir, "loading_coefficients.csv"), row.names = FALSE)
-  utils::write.csv(importance_df, file.path(output_dir, "row_importance.csv"), row.names = FALSE)
+  if (isTRUE(SAVE_LOADING_DATA)) {
+    utils::write.csv(coefficient_df, file.path(output_dir, "loading_coefficients.csv"), row.names = FALSE)
+    utils::write.csv(importance_df, file.path(output_dir, "row_importance.csv"), row.names = FALSE)
+  }
   writeLines(c(
     "Loading visualization guide",
     "",
@@ -498,7 +505,9 @@ make_loading_visualizations <- function(
     "Truth is used only after fitting/CV. Nothing in these PDFs changes estimates or scores.",
     "Failures/rank-deficient matrices are displayed as missing, not as zero estimates.",
     "Nonconverged but valid loading matrices are plotted and explicitly labeled.",
-    "Raw, normalized, and aligned values are in loading_coefficients.csv and the RDS.",
+    if (isTRUE(SAVE_LOADING_DATA))
+      "Raw, normalized, and aligned values are in loading_coefficients.csv and loading_plot_data.rds."
+    else "Full coefficient/RDS plot data were not stored (SAVE_LOADING_DATA=FALSE).",
     "Each output folder represents one simulation (no unaligned averaging across replicates)."
   ), file.path(output_dir, "README.txt"))
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
@@ -598,8 +607,12 @@ make_loading_visualizations <- function(
     file.path(output_dir, "row_importance_profiles.pdf"),
     width = 11.5, height = max(7.5, 2.7 * K))
 
-  all_differences <- unlist(lapply(records[methods], `[[`, "projector_difference"), use.names = FALSE)
-  difference_limit <- finite_max(all_differences)
+  difference_limit <- max(vapply(methods, function(label) {
+    z <- records[[label]]
+    if (!isTRUE(z$valid)) return(NA_real_)
+    finite_max(tcrossprod(z$Q) - Ptrue, fallback = 0)
+  }, numeric(1L)), na.rm = TRUE)
+  if (!is.finite(difference_limit) || difference_limit <= 1e-12) difference_limit <- 1
   projection_groups <- split(methods, ceiling(seq_along(methods) / 4L))
   boundaries <- head(cumsum(pp), -1L) + 0.5
   view_centers <- cumsum(pp) - (pp - 1) / 2
@@ -607,7 +620,8 @@ make_loading_visualizations <- function(
     d <- do.call(rbind, lapply(group, function(label) {
       ij <- expand.grid(row_variable = seq_len(p), column_variable = seq_len(p), KEEP.OUT.ATTRS = FALSE)
       ij$method <- label
-      ij$difference <- as.vector(records[[label]]$projector_difference)
+      z <- records[[label]]
+      ij$difference <- if (isTRUE(z$valid)) as.vector(tcrossprod(z$Q) - Ptrue) else rep(NA_real_, p * p)
       ij
     }))
     d$method <- factor(d$method, levels = group)
@@ -640,19 +654,38 @@ make_loading_visualizations <- function(
   invisible(summary)
 }
 
+save_compact_loadings <- function(loadings, population, rank, n, rep_id, fit_results) {
+  if (!isTRUE(SAVE_COMPACT_LOADINGS)) return(invisible(NULL))
+  dir <- file.path(OUT_DIR, "compact_loadings")
+  dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  mats <- lapply(loadings, function(x) tryCatch(plot_loading_matrix(x), error = function(e) NULL))
+  status <- if (is.data.frame(fit_results) && nrow(fit_results))
+    fit_results[, intersect(c("method", "status", "converged"), names(fit_results)), drop = FALSE] else data.frame()
+  payload <- list(loadings = mats, truth = population$Lstar,
+    p_list = population$p_list, active_global = population$active_global,
+    rank = rank, n = n, rep = rep_id, status = status)
+  saveRDS(payload, file.path(dir, paste0("rep", rep_id, "_r", rank, "_n", n, ".rds")),
+          compress = "xz")
+  invisible(NULL)
+}
+
 save_checkpoint <- function(results, cv_results, fits, populations, config,
                             external_cv_fold_results = data.frame()) {
-  saveRDS(
-    list(
-      results = results,
-      cv_results = cv_results,
-      external_cv_fold_results = external_cv_fold_results,
-      fits = fits,
-      populations = populations,
-      config = config
-    ),
-    file.path(OUT_DIR, "egcar_simulation.rds")
-  )
+  checkpoint <- list(results = results, cv_results = cv_results, config = config,
+    storage = list(full_fits = isTRUE(SAVE_FITS), cv_fold_results = isTRUE(SAVE_CV_FOLD_RESULTS),
+                   loading_plot_data = isTRUE(SAVE_LOADING_DATA), compact_loadings = isTRUE(SAVE_COMPACT_LOADINGS)))
+  if (isTRUE(SAVE_FITS)) {
+    checkpoint$fits <- fits
+    checkpoint$populations <- populations
+  }
+  if (isTRUE(SAVE_CV_FOLD_RESULTS)) checkpoint$external_cv_fold_results <- external_cv_fold_results
+  tmp <- tempfile("egcar_checkpoint_", tmpdir = OUT_DIR, fileext = ".rds")
+  saveRDS(checkpoint, tmp, compress = "xz")
+  if (!file.rename(tmp, file.path(OUT_DIR, "egcar_simulation.rds"))) {
+    if (!file.copy(tmp, file.path(OUT_DIR, "egcar_simulation.rds"), overwrite = TRUE))
+      stop("Could not write checkpoint.")
+    unlink(tmp)
+  }
   utils::write.csv(results, file.path(OUT_DIR, "simulation_results.csv"), row.names = FALSE)
   if (nrow(cv_results) > 0L) {
     utils::write.csv(cv_results, file.path(OUT_DIR, "cv_grid_results.csv"), row.names = FALSE)
@@ -661,7 +694,7 @@ save_checkpoint <- function(results, cv_results, fits, populations, config,
       utils::write.csv(chosen, file.path(OUT_DIR, "selected_cv_parameters.csv"), row.names = FALSE)
     }
   }
-  if (nrow(external_cv_fold_results) > 0L) {
+  if (isTRUE(SAVE_CV_FOLD_RESULTS) && nrow(external_cv_fold_results) > 0L) {
     utils::write.csv(external_cv_fold_results,
       file.path(OUT_DIR, "external_cv_fold_results.csv"), row.names = FALSE)
   }

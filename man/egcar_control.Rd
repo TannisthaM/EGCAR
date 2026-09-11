@@ -12,8 +12,8 @@ egcar_control(
     row_threshold = 1e-4, covariance_ridge = 1e-4,
     group_zero_tol = 1e-8, entry_zero_tol = 1e-10,
     partial_eigen = TRUE, partial_eigen_min = 128L,
-    loading_cache_max = 128L, keep_history = FALSE,
-    keep_full_C = TRUE, blas_threads = 1L, verbose = FALSE)
+    loading_cache_max = 4L, keep_history = FALSE,
+    keep_full_C = FALSE, blas_threads = 1L, verbose = FALSE)
 
 benchmark_control(
     sgca_eta = 0.001, sgca_ridge = 1e-6, sgca_init_tol = 5e-3,

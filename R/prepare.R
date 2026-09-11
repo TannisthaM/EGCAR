@@ -90,12 +90,9 @@ make_fold_objects <- function(views, fold_id) {
     train_views <- centered$views
     val_views <- center_views_at(val_raw, centered$means)
     list(
-      # Retain exactly the training data used to build EGCAR's covariance
-      # blocks so external solvers receive the same split and centering.
+      # Keep only fields actually consumed by CV. Raw indices and means are
+      # dropped after centering to reduce master/worker payloads.
       fold = f,
-      train_idx = train_idx,
-      validation_idx = val_idx,
-      train_means = centered$means,
       train_views = train_views,
       prep = prepare_problem(train_views),
       validation = make_validation_covariance(val_views)

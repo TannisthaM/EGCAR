@@ -55,8 +55,9 @@ validate_egcar_experiment_config <- function(config) {
     if (length(x) != 1L || !is.finite(x) || x < 0) stop(nm, " must be nonnegative.")
   }
   for (nm in c("adaptive_mu", "run_external_benchmarks", "stop_if_benchmark_packages_missing",
-               "align_external_block_signs", "save_fits", "make_plots", "fast_sgca_initializer",
-               "make_loading_plots")) {
+               "align_external_block_signs", "save_fits", "save_cv_fold_results",
+               "save_loading_data", "save_compact_loadings", "retain_benchmark_fits",
+               "make_plots", "fast_sgca_initializer", "make_loading_plots")) {
     if (!is.logical(config[[nm]]) || length(config[[nm]]) != 1L || is.na(config[[nm]]))
       stop(nm, " must be TRUE or FALSE.")
   }
@@ -141,23 +142,31 @@ egcar_experiment_config <- function(
   ALIGN_EXTERNAL_BLOCK_SIGNS <- TRUE
 
   ORACLE1_MAX_ITER <- MAX_ITER_FINAL
-  SAVE_FITS <- TRUE
+  # Memory/storage defaults: retain scientific summaries and compact loadings,
+  # not complete solver/package objects or fold-level diagnostics.
+  SAVE_FITS <- FALSE
+  SAVE_CV_FOLD_RESULTS <- FALSE
+  SAVE_LOADING_DATA <- FALSE
+  SAVE_COMPACT_LOADINGS <- TRUE
+  RETAIN_BENCHMARK_FITS <- FALSE
   MAKE_PLOTS <- TRUE
 
   # Matrix-only accelerations. Reference backends remain available for checks.
   FAST_SGCA_INITIALIZER <- TRUE
   MULTICCA_BACKEND <- "gram"  # "gram" (fast) or "PMA" (original package call)
-  LOADING_FACTOR_CACHE_MAX <- 128L  # bounded support-specific whitening cache
+  LOADING_FACTOR_CACHE_MAX <- 4L  # small bounded support-specific whitening cache
 
   # Separate loading PDFs for EVERY completed (rep, rank, n), by default.
   # NULL selects all; e.g. LOADING_PLOT_N <- c(100L, 10000L) limits PDF output.
-  MAKE_LOADING_PLOTS <- TRUE
+  # Per-configuration loading PDFs are large and can be regenerated from
+  # compact_loadings/, so they are off in the memory-first default.
+  MAKE_LOADING_PLOTS <- FALSE
   LOADING_PLOT_N <- NULL
   LOADING_PLOT_RANKS <- NULL
   LOADING_PLOT_REPS <- NULL
   LOADING_METHODS_PER_PAGE <- 3L  # truth is repeated on each comparison page
 
-  keys <- c("P_LIST", "N_GRID", "RANK_GRID", "ACTIVE_PER_VIEW", "TOEPLITZ_RHO", "SIGNAL", "MASTER_SEED", "RHO_E_CV_GRID", "LAMBDA_G_CV_GRID", "RATE_C_E", "RATE_C_G", "N_FOLDS", "MU_Z", "MU_G", "MAX_ITER_CV", "MAX_ITER_FINAL", "ABS_TOL", "REL_TOL", "ADAPTIVE_MU", "ROW_THRESHOLD", "COVARIANCE_RIDGE", "GROUP_ZERO_TOL", "ENTRY_ZERO_TOL", "CHECK_EVERY_ADMM", "COARSE_STEP_CV", "REFINE_WINDOW_CV", "RUN_EXTERNAL_BENCHMARKS", "STOP_IF_BENCHMARK_PACKAGES_MISSING", "SGCA_K_GRID", "SGCA_RHO_GRID", "SGCA_LAMBDA_GRID", "SGCA_ETA", "SGCA_RIDGE_B", "SGCA_INIT_TOL", "SGCA_MAX_ITER_INIT", "SGCA_TGD_TOL", "SGCA_MAX_ITER_TGD", "RGCCA_TAU_GRID", "RGCCA_SCHEME", "RGCCA_TOL", "RGCCA_MAX_ITER", "SGCCA_SPARSITY_GRID", "MULTICCA_L1_GRID", "MULTICCA_NITER", "ALIGN_EXTERNAL_BLOCK_SIGNS", "ORACLE1_MAX_ITER", "SAVE_FITS", "MAKE_PLOTS", "FAST_SGCA_INITIALIZER", "MULTICCA_BACKEND", "LOADING_FACTOR_CACHE_MAX", "MAKE_LOADING_PLOTS", "LOADING_PLOT_N", "LOADING_PLOT_RANKS", "LOADING_PLOT_REPS", "LOADING_METHODS_PER_PAGE")
+  keys <- c("P_LIST", "N_GRID", "RANK_GRID", "ACTIVE_PER_VIEW", "TOEPLITZ_RHO", "SIGNAL", "MASTER_SEED", "RHO_E_CV_GRID", "LAMBDA_G_CV_GRID", "RATE_C_E", "RATE_C_G", "N_FOLDS", "MU_Z", "MU_G", "MAX_ITER_CV", "MAX_ITER_FINAL", "ABS_TOL", "REL_TOL", "ADAPTIVE_MU", "ROW_THRESHOLD", "COVARIANCE_RIDGE", "GROUP_ZERO_TOL", "ENTRY_ZERO_TOL", "CHECK_EVERY_ADMM", "COARSE_STEP_CV", "REFINE_WINDOW_CV", "RUN_EXTERNAL_BENCHMARKS", "STOP_IF_BENCHMARK_PACKAGES_MISSING", "SGCA_K_GRID", "SGCA_RHO_GRID", "SGCA_LAMBDA_GRID", "SGCA_ETA", "SGCA_RIDGE_B", "SGCA_INIT_TOL", "SGCA_MAX_ITER_INIT", "SGCA_TGD_TOL", "SGCA_MAX_ITER_TGD", "RGCCA_TAU_GRID", "RGCCA_SCHEME", "RGCCA_TOL", "RGCCA_MAX_ITER", "SGCCA_SPARSITY_GRID", "MULTICCA_L1_GRID", "MULTICCA_NITER", "ALIGN_EXTERNAL_BLOCK_SIGNS", "ORACLE1_MAX_ITER", "SAVE_FITS", "SAVE_CV_FOLD_RESULTS", "SAVE_LOADING_DATA", "SAVE_COMPACT_LOADINGS", "RETAIN_BENCHMARK_FITS", "MAKE_PLOTS", "FAST_SGCA_INITIALIZER", "MULTICCA_BACKEND", "LOADING_FACTOR_CACHE_MAX", "MAKE_LOADING_PLOTS", "LOADING_PLOT_N", "LOADING_PLOT_RANKS", "LOADING_PLOT_REPS", "LOADING_METHODS_PER_PAGE")
   out <- mget(keys, envir = environment(), inherits = FALSE)
   names(out) <- tolower(names(out))
   changes <- list(...)

@@ -69,8 +69,9 @@ validate_egcar_experiment_config <- function(config) {
     if (length(x) != 1L || !is.finite(x) || x < 0) stop(nm, " must be nonnegative.")
   }
   for (nm in c("adaptive_mu", "run_external_benchmarks", "stop_if_benchmark_packages_missing",
-               "align_external_block_signs", "save_fits", "make_plots", "fast_sgca_initializer",
-               "make_loading_plots")) {
+               "align_external_block_signs", "save_fits", "save_cv_fold_results",
+               "save_loading_data", "save_compact_loadings", "retain_benchmark_fits",
+               "make_plots", "fast_sgca_initializer", "make_loading_plots")) {
     if (!is.logical(config[[nm]]) || length(config[[nm]]) != 1L || is.na(config[[nm]]))
       stop(nm, " must be TRUE or FALSE.")
   }
@@ -155,23 +156,27 @@ egcar_experiment_config <- function(
   ALIGN_EXTERNAL_BLOCK_SIGNS <- TRUE
 
   ORACLE1_MAX_ITER <- MAX_ITER_FINAL
-  SAVE_FITS <- TRUE
+  SAVE_FITS <- FALSE
+  SAVE_CV_FOLD_RESULTS <- FALSE
+  SAVE_LOADING_DATA <- FALSE
+  SAVE_COMPACT_LOADINGS <- TRUE
+  RETAIN_BENCHMARK_FITS <- FALSE
   MAKE_PLOTS <- TRUE
 
   # Matrix-only accelerations. Reference backends remain available for checks.
   FAST_SGCA_INITIALIZER <- TRUE
   MULTICCA_BACKEND <- "gram"  # "gram" (fast) or "PMA" (original package call)
-  LOADING_FACTOR_CACHE_MAX <- 128L  # bounded support-specific whitening cache
+  LOADING_FACTOR_CACHE_MAX <- 4L  # small bounded support-specific whitening cache
 
   # Separate loading PDFs for EVERY completed (rep, rank, n), by default.
   # NULL selects all; e.g. LOADING_PLOT_N <- c(100L, 10000L) limits PDF output.
-  MAKE_LOADING_PLOTS <- TRUE
+  MAKE_LOADING_PLOTS <- FALSE
   LOADING_PLOT_N <- NULL
   LOADING_PLOT_RANKS <- NULL
   LOADING_PLOT_REPS <- NULL
   LOADING_METHODS_PER_PAGE <- 3L  # truth is repeated on each comparison page
 
-  keys <- c("P_LIST", "N_GRID", "RANK_GRID", "ACTIVE_PER_VIEW", "TOEPLITZ_RHO", "SIGNAL", "MASTER_SEED", "RHO_E_CV_GRID", "LAMBDA_G_CV_GRID", "RATE_C_E", "RATE_C_G", "N_FOLDS", "MU_Z", "MU_G", "MAX_ITER_CV", "MAX_ITER_FINAL", "ABS_TOL", "REL_TOL", "ADAPTIVE_MU", "ROW_THRESHOLD", "COVARIANCE_RIDGE", "GROUP_ZERO_TOL", "ENTRY_ZERO_TOL", "CHECK_EVERY_ADMM", "COARSE_STEP_CV", "REFINE_WINDOW_CV", "RUN_EXTERNAL_BENCHMARKS", "STOP_IF_BENCHMARK_PACKAGES_MISSING", "SGCA_K_GRID", "SGCA_RHO_GRID", "SGCA_LAMBDA_GRID", "SGCA_ETA", "SGCA_RIDGE_B", "SGCA_INIT_TOL", "SGCA_MAX_ITER_INIT", "SGCA_TGD_TOL", "SGCA_MAX_ITER_TGD", "RGCCA_TAU_GRID", "RGCCA_SCHEME", "RGCCA_TOL", "RGCCA_MAX_ITER", "SGCCA_SPARSITY_GRID", "MULTICCA_L1_GRID", "MULTICCA_NITER", "ALIGN_EXTERNAL_BLOCK_SIGNS", "ORACLE1_MAX_ITER", "SAVE_FITS", "MAKE_PLOTS", "FAST_SGCA_INITIALIZER", "MULTICCA_BACKEND", "LOADING_FACTOR_CACHE_MAX", "MAKE_LOADING_PLOTS", "LOADING_PLOT_N", "LOADING_PLOT_RANKS", "LOADING_PLOT_REPS", "LOADING_METHODS_PER_PAGE")
+  keys <- c("P_LIST", "N_GRID", "RANK_GRID", "ACTIVE_PER_VIEW", "TOEPLITZ_RHO", "SIGNAL", "MASTER_SEED", "RHO_E_CV_GRID", "LAMBDA_G_CV_GRID", "RATE_C_E", "RATE_C_G", "N_FOLDS", "MU_Z", "MU_G", "MAX_ITER_CV", "MAX_ITER_FINAL", "ABS_TOL", "REL_TOL", "ADAPTIVE_MU", "ROW_THRESHOLD", "COVARIANCE_RIDGE", "GROUP_ZERO_TOL", "ENTRY_ZERO_TOL", "CHECK_EVERY_ADMM", "COARSE_STEP_CV", "REFINE_WINDOW_CV", "RUN_EXTERNAL_BENCHMARKS", "STOP_IF_BENCHMARK_PACKAGES_MISSING", "SGCA_K_GRID", "SGCA_RHO_GRID", "SGCA_LAMBDA_GRID", "SGCA_ETA", "SGCA_RIDGE_B", "SGCA_INIT_TOL", "SGCA_MAX_ITER_INIT", "SGCA_TGD_TOL", "SGCA_MAX_ITER_TGD", "RGCCA_TAU_GRID", "RGCCA_SCHEME", "RGCCA_TOL", "RGCCA_MAX_ITER", "SGCCA_SPARSITY_GRID", "MULTICCA_L1_GRID", "MULTICCA_NITER", "ALIGN_EXTERNAL_BLOCK_SIGNS", "ORACLE1_MAX_ITER", "SAVE_FITS", "SAVE_CV_FOLD_RESULTS", "SAVE_LOADING_DATA", "SAVE_COMPACT_LOADINGS", "RETAIN_BENCHMARK_FITS", "MAKE_PLOTS", "FAST_SGCA_INITIALIZER", "MULTICCA_BACKEND", "LOADING_FACTOR_CACHE_MAX", "MAKE_LOADING_PLOTS", "LOADING_PLOT_N", "LOADING_PLOT_RANKS", "LOADING_PLOT_REPS", "LOADING_METHODS_PER_PAGE")
   out <- mget(keys, envir = environment(), inherits = FALSE)
   names(out) <- tolower(names(out))
   changes <- list(...)
@@ -1399,9 +1404,6 @@ run_local_egcar_experiments <- function(
         # Retain exactly the training data used to build EGCAR's covariance
         # blocks so external solvers receive the same split and centering.
         fold = f,
-        train_idx = train_idx,
-        validation_idx = val_idx,
-        train_means = centered$means,
         train_views = train_views,
         prep = prepare_problem(train_views),
         validation = make_validation_covariance(val_views)
@@ -2240,7 +2242,7 @@ run_local_egcar_experiments <- function(
   sgca_prepare_tgd_start <- function(A, B, init, k) {
     U0 <- sgca_metric_normalize(sgca_hard_rows(init, k), B)
     ev <- eigen(symmetrize(crossprod(U0, A %*% U0)), symmetric = TRUE)
-    list(U0 = U0, vectors = ev$vectors, values = ev$values,
+    list(vectors = ev$vectors, values = ev$values,
          U0_vectors = U0 %*% ev$vectors)
   }
 
@@ -2262,9 +2264,8 @@ run_local_egcar_experiments <- function(
     sqB <- tcrossprod(sweep(ev$vectors, 2L, sqrt(d), "*"), ev$vectors)
     tau <- 4 * nu * max(d)^2
     if (!is.finite(tau) || tau <= 0) tau <- 1
-    list(A = A, B = B, sqB = sqB, tau = tau, nu = nu,
-         A_scaled = (1 / tau) * A, B_scaled = (nu / tau) * B,
-         sqB_scaled = (nu / tau) * sqB, update_H = h_update)
+    list(p = nrow(B), B = B, sqB = sqB, tau = tau, nu = nu,
+         A_scaled = (1 / tau) * A, B_scale = nu / tau, update_H = h_update)
   }
 
   sgca_init_cached <- function(prepared, rho, K,
@@ -2272,17 +2273,17 @@ run_local_egcar_experiments <- function(
                                maxiter = SGCA_MAX_ITER_INIT, trace = FALSE) {
     if (is.null(prepared)) stop("Missing SGCA initializer preparation.")
     z <- prepared
-    p <- nrow(z$B)
+    p <- z$p
     H <- Pi <- oldPi <- diag(1, p)
     Gamma <- matrix(0, p, p)
     criteria <- Inf
     iter <- 0L
     threshold <- rho / z$tau
     while (criteria > epsilon && iter < maxiter) {
-      fixed_H <- z$sqB_scaled %*% (H - Gamma) %*% z$sqB
+      fixed_H <- z$B_scale * (z$sqB %*% (H - Gamma) %*% z$sqB)
       for (j in seq_len(20L)) {
         Pi <- soft_threshold(Pi + z$A_scaled -
-          z$B_scaled %*% Pi %*% z$B + fixed_H, threshold)
+          z$B_scale * (z$B %*% Pi %*% z$B) + fixed_H, threshold)
       }
       H <- z$update_H(z$sqB, Gamma, z$nu, Pi, K)
       Gamma <- Gamma + (z$sqB %*% Pi %*% z$sqB - H) * z$nu
@@ -2440,8 +2441,11 @@ run_local_egcar_experiments <- function(
           }
           U <- sweep(ss$u[, seq_len(rank), drop = FALSE], 2L,
                      sqrt(ss$d[seq_len(rank)]), "*")
-          list(U = U, raw = z, error = NULL)
-        }, error = function(e) list(U = NULL, error = conditionMessage(e)))
+          list(U = U, convergence = z$convergence, iteration = z$iteration,
+               raw = if (isTRUE(final) && RETAIN_BENCHMARK_FITS) z else NULL,
+               error = NULL)
+        }, error = function(e) list(U = NULL, convergence = NA_real_, iteration = NA_integer_,
+                                    raw = NULL, error = conditionMessage(e)))
         assign(key, initialized, envir = context$init_cache)
       }
       ini <- get(key, envir = context$init_cache, inherits = FALSE)
@@ -2459,16 +2463,16 @@ run_local_egcar_experiments <- function(
         rank = rank, k = k, lambda = lambda,
         prepared_start = st$value, matrices_prepared = TRUE
       )
-      init_conv <- if (is.numeric(ini$raw$convergence) && length(ini$raw$convergence) == 1L) {
-        is.finite(ini$raw$convergence) && ini$raw$convergence <= SGCA_INIT_TOL
+      init_conv <- if (is.numeric(ini$convergence) && length(ini$convergence) == 1L) {
+        is.finite(ini$convergence) && ini$convergence <= SGCA_INIT_TOL
       } else NA
       conv <- if (identical(init_conv, FALSE)) FALSE else tgd$converged
-      init_iters <- as.integer(ini$raw$iteration %||% NA_integer_)
+      init_iters <- as.integer(ini$iteration %||% NA_integer_)
       list(
         L = tgd$L,
-        fit = list(initializer = ini$raw, tgd = tgd,
+        fit = if (isTRUE(final) && RETAIN_BENCHMARK_FITS) list(initializer = ini$raw, tgd = tgd,
                    k = k, rho = rho, lambda = lambda,
-                   rho_rule = "direct coefficient, unchanged on full-sample refit"),
+                   rho_rule = "direct coefficient, unchanged on full-sample refit") else NULL,
         converged = conv, iterations = init_iters + tgd$iterations
       )
     }
@@ -2822,10 +2826,6 @@ run_local_egcar_experiments <- function(
     output_dir <- file.path(OUT_DIR, subdir)
     dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
-    utils::write.csv(
-      results, file.path(output_dir, "plot_data.csv"), row.names = FALSE
-    )
-
     for (r in sort(unique(results$rank))) {
       # SGCA/RGCCA/SGCCA/MultiCCA estimate loadings rather than C, so they appear in the
       # subspace and time plots; operator/support plots contain methods for which
@@ -3009,8 +3009,10 @@ run_local_egcar_experiments <- function(
         aligned = as.vector(records[[label]]$aligned),
         true_normalized = as.vector(Qtrue), stringsAsFactors = FALSE)
     }))
-    utils::write.csv(coefficient_df, file.path(output_dir, "loading_coefficients.csv"), row.names = FALSE)
-    utils::write.csv(importance_df, file.path(output_dir, "row_importance.csv"), row.names = FALSE)
+    if (SAVE_LOADING_DATA) {
+      utils::write.csv(coefficient_df, file.path(output_dir, "loading_coefficients.csv"), row.names = FALSE)
+      utils::write.csv(importance_df, file.path(output_dir, "row_importance.csv"), row.names = FALSE)
+    }
     writeLines(c(
       "Loading visualization guide",
       "",
@@ -3193,7 +3195,7 @@ run_local_egcar_experiments <- function(
         utils::write.csv(chosen, file.path(OUT_DIR, "selected_cv_parameters.csv"), row.names = FALSE)
       }
     }
-    if (nrow(external_cv_fold_results) > 0L) {
+    if (SAVE_CV_FOLD_RESULTS && nrow(external_cv_fold_results) > 0L) {
       utils::write.csv(external_cv_fold_results,
         file.path(OUT_DIR, "external_cv_fold_results.csv"), row.names = FALSE)
     }
@@ -3453,6 +3455,24 @@ run_local_egcar_experiments <- function(
     "  for(int i=0;i<x.size();++i) ans.push_back(Rcpp::as<arma::mat>(x[i]));",
     "  return ans;",
     "}",
+    "// Construct R matrices explicitly at the nested-container boundary. Do not",
+    "// rely on generic wrapping of std::vector<arma::mat> to retain dim attributes.",
+    "// Both Armadillo and R use column-major storage; this is an owning copy, with",
+    "// no transpose and no pointer into the soon-to-be-destroyed solver state.",
+    "static Rcpp::List egcar_matrix_list_to_R(const std::vector<arma::mat>& values) {",
+    "  Rcpp::List out(values.size());",
+    "  for (std::size_t i = 0; i < values.size(); ++i) {",
+    "    const arma::mat& A = values[i];",
+    "    if (A.n_rows > static_cast<arma::uword>(std::numeric_limits<int>::max()) ||",
+    "        A.n_cols > static_cast<arma::uword>(std::numeric_limits<int>::max()))",
+    "      Rcpp::stop(\"Native output matrix dimensions exceed R's matrix limits.\");",
+    "    Rcpp::NumericMatrix block(static_cast<int>(A.n_rows),",
+    "                              static_cast<int>(A.n_cols));",
+    "    if (A.n_elem > 0) std::copy(A.begin(), A.end(), block.begin());",
+    "    out[i] = block;",
+    "  }",
+    "  return out;",
+    "}",
     "static void egcar_interrupt() { Rcpp::checkUserInterrupt(); }",
     "static void egcar_progress(int it,double rp,double rd,double ep,double ed) {",
     "  Rcpp::Rcout << \"  iter=\" << it << \" primal=\" << rp << \" (\" << ep << \") dual=\" << rd << \" (\" << ed << \")\\n\";",
@@ -3489,20 +3509,20 @@ run_local_egcar_experiments <- function(
     "  } else { s.Z=egcar_mat_list(state[\"Z\"]); s.H=egcar_mat_list(state[\"H\"]); }",
     "  Result fit=solve(p,std::move(s),ctl,group,egcar_interrupt,verbose?egcar_progress:nullptr);",
     "  Rcpp::List outstate;",
-    "  if(group) outstate=Rcpp::List::create(Rcpp::_ [\"C\"]=fit.state.C,Rcpp::_ [\"Gk\"]=fit.state.Gk,",
-    "      Rcpp::_ [\"Gl\"]=fit.state.Gl,Rcpp::_ [\"Vk\"]=fit.state.Vk,Rcpp::_ [\"Vl\"]=fit.state.Vl);",
-    "  else outstate=Rcpp::List::create(Rcpp::_ [\"C\"]=fit.state.C,Rcpp::_ [\"Z\"]=fit.state.Z,Rcpp::_ [\"H\"]=fit.state.H);",
+    "  if(group) outstate=Rcpp::List::create(Rcpp::_ [\"C\"]=egcar_matrix_list_to_R(fit.state.C),Rcpp::_ [\"Gk\"]=egcar_matrix_list_to_R(fit.state.Gk),",
+    "      Rcpp::_ [\"Gl\"]=egcar_matrix_list_to_R(fit.state.Gl),Rcpp::_ [\"Vk\"]=egcar_matrix_list_to_R(fit.state.Vk),Rcpp::_ [\"Vl\"]=egcar_matrix_list_to_R(fit.state.Vl));",
+    "  else outstate=Rcpp::List::create(Rcpp::_ [\"C\"]=egcar_matrix_list_to_R(fit.state.C),Rcpp::_ [\"Z\"]=egcar_matrix_list_to_R(fit.state.Z),Rcpp::_ [\"H\"]=egcar_matrix_list_to_R(fit.state.H));",
     "  Rcpp::NumericMatrix hist(fit.history.size(),7);",
     "  for(unsigned i=0;i<fit.history.size();++i) for(unsigned j=0;j<7;++j) hist(i,j)=fit.history[i][j];",
     "  if(!std::isfinite(fit.primal)||!std::isfinite(fit.dual)) Rcpp::warning(\"ADMM produced a non-finite residual.\");",
     "  return Rcpp::List::create(Rcpp::_ [\"state\"]=outstate,Rcpp::_ [\"converged\"]=fit.converged,",
     "      Rcpp::_ [\"iterations\"]=fit.iterations,Rcpp::_ [\"primal\"]=fit.primal,Rcpp::_ [\"dual\"]=fit.dual,",
     "      Rcpp::_ [\"eps_primal\"]=fit.eps_primal,Rcpp::_ [\"eps_dual\"]=fit.eps_dual,",
-    "      Rcpp::_ [\"mu\"]=fit.mu,Rcpp::_ [\"history\"]=hist);",
+    "      Rcpp::_ [\"mu\"]=fit.mu,Rcpp::_ [\"history\"]=hist, Rcpp::_ [\"matrix_api\"]=2);",
     "}"
   ), collapse = "\n")
   EGCAR_CPP_CACHE <- file.path(normalizePath(OUT_DIR, mustWork = TRUE), ".egcar_native_cache")
-  EGCAR_CPP_FILE <- file.path(EGCAR_CPP_CACHE, "egcar_native_v1.cpp")
+  EGCAR_CPP_FILE <- file.path(EGCAR_CPP_CACHE, "egcar_native_v2_matrix_api.cpp")
 
   # Keep the original implementations callable for checks and exact rollback.
   fit_l11_admm_reference <- fit_l11_admm
@@ -3514,7 +3534,7 @@ run_local_egcar_experiments <- function(
   # Each process obtains its own locally loaded function from the shared build
   # cache; the pid guard also handles a future plan change or a forked process.
   egcar_native_function <- function(required = FALSE) {
-    runtime <- getOption("egcar.native.runtime.v1")
+    runtime <- getOption("egcar.native.runtime.v2.matrix.api")
     if (is.list(runtime) && identical(runtime$pid, Sys.getpid()) &&
         identical(runtime$file, EGCAR_CPP_FILE)) {
       if (required && is.null(runtime$fun)) stop(runtime$error)
@@ -3535,7 +3555,7 @@ run_local_egcar_experiments <- function(
                      showOutput = FALSE, verbose = FALSE)
       get("egcar_native_solve", envir = local, inherits = FALSE)
     }, error = function(e) { failure <<- conditionMessage(e); NULL })
-    options(egcar.native.runtime.v1 = list(pid = Sys.getpid(), file = EGCAR_CPP_FILE,
+    options(egcar.native.runtime.v2.matrix.api = list(pid = Sys.getpid(), file = EGCAR_CPP_FILE,
                                          fun = fun, error = failure))
     if (required && is.null(fun)) stop(failure)
     fun
@@ -3762,6 +3782,37 @@ run_local_egcar_experiments <- function(
       check_every = as.integer(check_every), history = isTRUE(keep_history))
   }
 
+  .egcar_check_solver_state <- function(state, context, group, backend) {
+    fields <- if (group) c("C", "Gk", "Gl", "Vk", "Vl") else c("C", "Z", "H")
+    hint <- if (identical(backend, "cpp")) paste0(
+      " Reinstall the patched egcar source package and restart R, including CV workers.") else ""
+    fail <- function(message) stop("EGCAR ", backend, " matrix interface: ", message,
+                                    hint, call. = FALSE)
+    if (!is.list(state) || anyDuplicated(names(state)) ||
+        !all(fields %in% names(state)))
+      fail("the solver did not return the required named state lists.")
+    count <- length(context$edge_k)
+    for (nm in fields) {
+      blocks <- state[[nm]]
+      if (!is.list(blocks) || length(blocks) != count)
+        fail(paste0("state$", nm, " must contain ", count, " edge matrices."))
+      for (j in seq_len(count)) {
+        expected <- as.integer(c(context$p_list[[context$edge_k[[j]]]],
+                                 context$p_list[[context$edge_l[[j]]]]))
+        A <- blocks[[j]]
+        if (!is.matrix(A) || !is.numeric(A) || !identical(dim(A), expected)) {
+          observed <- if (is.null(dim(A))) paste0(
+            "a dimensionless ", typeof(A), " object of length ", length(A)) else paste0(
+            "a ", typeof(A), " array with dimensions ", paste(dim(A), collapse = " x "))
+          fail(paste0("state$", nm, "[[", j, "]] (edge ",
+            context$edge_k[[j]], "_", context$edge_l[[j]], ") must be a numeric ",
+            paste(expected, collapse = " x "), " matrix; got ", observed, "."))
+        }
+      }
+    }
+    invisible(TRUE)
+  }
+
   egcar_run_solver <- function(prep, ctl, init, group, verbose = FALSE) {
     z <- egcar_get_context(prep)
     s <- egcar_initial_state(prep, z, init, group)
@@ -3770,6 +3821,11 @@ run_local_egcar_experiments <- function(
       egcar_native_function(required = EGCAR_BACKEND == "cpp") else NULL
     raw <- if (is.function(fun)) fun(z, s, ctl, group, verbose) else
       egcar_solve_R(z, s, ctl, group, verbose)
+    if (is.function(fun) && !identical(raw$matrix_api, 2L))
+      stop("EGCAR native matrix API mismatch. Restart R and use the updated standalone script.",
+           call. = FALSE)
+    .egcar_check_solver_state(raw$state, z, group,
+                              if (is.function(fun)) "cpp" else "r")
     raw$context <- z
     raw
   }
@@ -3939,7 +3995,7 @@ run_local_egcar_experiments <- function(
     reference = "cran/ccar3 R/ecca.r; inspected 2026-09-10; version 0.1.2",
     partial_loading_eigen = EGCAR_PARTIAL_EIGEN,
     native_error = if (EGCAR_MASTER_BACKEND == "r" && EGCAR_BACKEND == "auto")
-      getOption("egcar.native.runtime.v1")$error else NULL)
+      getOption("egcar.native.runtime.v2.matrix.api")$error else NULL)
   saveRDS(EGCAR_ACCELERATION_INFO, file.path(OUT_DIR, "egcar_acceleration_info.rds"))
   cat(sprintf("EGCAR backend: %s; startup (not fit time): %.2fs; CV workers: %s\n",
     EGCAR_MASTER_BACKEND, EGCAR_ACCELERATION_INFO$startup_seconds,
@@ -4236,14 +4292,18 @@ run_local_egcar_experiments <- function(
         )
         cv_results <- bind_rows_fill(cv_results, cv_g_table)
 
-        for (label in c("EGCAR-L11-CV", "EGCAR-L21-CV")) {
-          cv_one <- if (label == "EGCAR-L11-CV") cv_e else cv_g
-          tab <- cv_one$cv_fold_table
-          tab$rep <- rep_id; tab$rank <- rank; tab$n <- n; tab$method <- label
-          egcar_cv_fold_results <- bind_rows_fill(egcar_cv_fold_results, tab)
+        if (SAVE_CV_FOLD_RESULTS) {
+          for (label in c("EGCAR-L11-CV", "EGCAR-L21-CV")) {
+            cv_one <- if (label == "EGCAR-L11-CV") cv_e else cv_g
+            tab <- cv_one$cv_fold_table
+            if (nrow(tab)) {
+              tab$rep <- rep_id; tab$rank <- rank; tab$n <- n; tab$method <- label
+              egcar_cv_fold_results <- bind_rows_fill(egcar_cv_fold_results, tab)
+            }
+          }
+          utils::write.csv(egcar_cv_fold_results,
+            file.path(OUT_DIR, "egcar_cv_fold_results.csv"), row.names = FALSE)
         }
-        utils::write.csv(egcar_cv_fold_results,
-          file.path(OUT_DIR, "egcar_cv_fold_results.csv"), row.names = FALSE)
 
         # All four external methods use the SAME shared fold objects/loss.
         # They estimate loading spaces, not C, so C/support metrics remain NA.
@@ -4276,7 +4336,7 @@ run_local_egcar_experiments <- function(
           )
           cv_results <- bind_rows_fill(cv_results, ext_cv)
           ext_folds <- one_benchmark$cv_fold_table
-          if (!is.null(ext_folds) && nrow(ext_folds) > 0L) {
+          if (SAVE_CV_FOLD_RESULTS && !is.null(ext_folds) && nrow(ext_folds) > 0L) {
             ext_folds$rep <- rep_id
             ext_folds$rank <- rank
             ext_folds$n <- n
@@ -4307,6 +4367,15 @@ run_local_egcar_experiments <- function(
           point_loadings[label] <- list(external[[label]]$L)
         }
         point_loadings <- point_loadings[METHOD_ORDER]
+        if (SAVE_COMPACT_LOADINGS) {
+          compact_dir <- file.path(OUT_DIR, "compact_loadings")
+          dir.create(compact_dir, recursive = TRUE, showWarnings = FALSE)
+          compact_mats <- lapply(point_loadings, function(x) tryCatch(plot_loading_matrix(x), error = function(e) NULL))
+          saveRDS(list(loadings = compact_mats, truth = population$Lstar,
+                       p_list = population$p_list, active_global = population$active_global,
+                       rank = rank, n = n, rep = rep_id, signal = population$signal),
+                  file.path(compact_dir, paste0(fit_tag, ".rds")), compress = "xz")
+        }
         if (SAVE_FITS) {
           fits_store[[fit_tag]] <- list(
             Cstar = population$Cstar,
@@ -4340,7 +4409,10 @@ run_local_egcar_experiments <- function(
           cv_e$rho_e, cv_e$status))
         cat(sprintf("  selected L21 coefficient: lambda_g=%g; status=%s\n",
           cv_g$lambda_g, cv_g$status))
-
+        rm(views, centered_full, full_prep, fold_id, fold_objects,
+           C_oracle2, L_oracle2, fit_e_rate, L_e_rate, cv_e,
+           fit_g_rate, L_g_rate, cv_g, external, point_rows, point_loadings)
+        gc(verbose = FALSE)
       }
     }
   }

@@ -80,7 +80,7 @@ sgca_metric_normalize <- function(U, B, tol = 1e-10) {
 sgca_prepare_tgd_start <- function(A, B, init, k) {
   U0 <- sgca_metric_normalize(sgca_hard_rows(init, k), B)
   ev <- eigen(symmetrize(crossprod(U0, A %*% U0)), symmetric = TRUE)
-  list(U0 = U0, vectors = ev$vectors, values = ev$values,
+  list(vectors = ev$vectors, values = ev$values,
        U0_vectors = U0 %*% ev$vectors)
 }
 
@@ -95,9 +95,8 @@ sgca_prepare_initializer <- function(A, B, reference, nu = 1) {
   sqB <- tcrossprod(sweep(ev$vectors, 2L, sqrt(d), "*"), ev$vectors)
   tau <- 4 * nu * max(d)^2
   if (!is.finite(tau) || tau <= 0) tau <- 1
-  list(A = A, B = B, sqB = sqB, tau = tau, nu = nu,
-       A_scaled = (1 / tau) * A, B_scaled = (nu / tau) * B,
-       sqB_scaled = (nu / tau) * sqB, update_H = h_update)
+  list(p = nrow(B), B = B, sqB = sqB, tau = tau, nu = nu,
+       A_scaled = (1 / tau) * A, B_scale = nu / tau, update_H = h_update)
 }
 
 sgca_init_cached <- function(prepared, rho, K,
@@ -105,17 +104,17 @@ sgca_init_cached <- function(prepared, rho, K,
                              maxiter = SGCA_MAX_ITER_INIT, trace = FALSE) {
   if (is.null(prepared)) stop("Missing SGCA initializer preparation.")
   z <- prepared
-  p <- nrow(z$B)
+  p <- z$p
   H <- Pi <- oldPi <- diag(1, p)
   Gamma <- matrix(0, p, p)
   criteria <- Inf
   iter <- 0L
   threshold <- rho / z$tau
   while (criteria > epsilon && iter < maxiter) {
-    fixed_H <- z$sqB_scaled %*% (H - Gamma) %*% z$sqB
+    fixed_H <- z$B_scale * (z$sqB %*% (H - Gamma) %*% z$sqB)
     for (j in seq_len(20L)) {
       Pi <- soft_threshold(Pi + z$A_scaled -
-        z$B_scaled %*% Pi %*% z$B + fixed_H, threshold)
+        z$B_scale * (z$B %*% Pi %*% z$B) + fixed_H, threshold)
     }
     H <- z$update_H(z$sqB, Gamma, z$nu, Pi, K)
     Gamma <- Gamma + (z$sqB %*% Pi %*% z$sqB - H) * z$nu
@@ -272,8 +271,11 @@ sgca_common_cv <- function(
         }
         U <- sweep(ss$u[, seq_len(rank), drop = FALSE], 2L,
                    sqrt(ss$d[seq_len(rank)]), "*")
-        list(U = U, raw = z, error = NULL)
-      }, error = function(e) list(U = NULL, error = conditionMessage(e)))
+        list(U = U, convergence = z$convergence, iteration = z$iteration,
+             raw = if (isTRUE(final) && isTRUE(get0("RETAIN_BENCHMARK_FITS", inherits = TRUE, ifnotfound = TRUE))) z else NULL,
+             error = NULL)
+      }, error = function(e) list(U = NULL, convergence = NA_real_, iteration = NA_integer_,
+                                  raw = NULL, error = conditionMessage(e)))
       assign(key, initialized, envir = context$init_cache)
     }
     ini <- get(key, envir = context$init_cache, inherits = FALSE)
@@ -291,16 +293,17 @@ sgca_common_cv <- function(
       rank = rank, k = k, lambda = lambda,
       prepared_start = st$value, matrices_prepared = TRUE
     )
-    init_conv <- if (is.numeric(ini$raw$convergence) && length(ini$raw$convergence) == 1L) {
-      is.finite(ini$raw$convergence) && ini$raw$convergence <= SGCA_INIT_TOL
+    init_conv <- if (is.numeric(ini$convergence) && length(ini$convergence) == 1L) {
+      is.finite(ini$convergence) && ini$convergence <= SGCA_INIT_TOL
     } else NA
     conv <- if (identical(init_conv, FALSE)) FALSE else tgd$converged
-    init_iters <- as.integer(ini$raw$iteration %||% NA_integer_)
+    init_iters <- as.integer(ini$iteration %||% NA_integer_)
+    keep_fit <- isTRUE(final) && isTRUE(get0("RETAIN_BENCHMARK_FITS", inherits = TRUE, ifnotfound = TRUE))
     list(
       L = tgd$L,
-      fit = list(initializer = ini$raw, tgd = tgd,
+      fit = if (keep_fit) list(initializer = ini$raw, tgd = tgd,
                  k = k, rho = rho, lambda = lambda,
-                 rho_rule = "direct coefficient, unchanged on full-sample refit"),
+                 rho_rule = "direct coefficient, unchanged on full-sample refit") else NULL,
       converged = conv, iterations = init_iters + tgd$iterations
     )
   }

@@ -90,7 +90,8 @@ fit_zero_penalty_oracle_admm <- function(
     covariance_ridge,
     max_iter,
     source_label,
-    keep_history = TRUE) {
+    keep_history = TRUE,
+    retain_raw_fit = TRUE) {
 
   start <- proc.time()[[3L]]
 
@@ -116,6 +117,7 @@ fit_zero_penalty_oracle_admm <- function(
       covariance_ridge = covariance_ridge,
       require_positive = TRUE
     )
+    if (!retain_raw_fit && is.list(loading)) loading$C_full <- NULL
 
     messages <- character(0)
     status <- "ok"
@@ -136,8 +138,8 @@ fit_zero_penalty_oracle_admm <- function(
     list(
       C = fit$C_hat,
       loading = loading,
-      prep = prep,
-      raw_fit = fit,
+      prep = if (retain_raw_fit) prep else NULL,
+      raw_fit = if (retain_raw_fit) fit else NULL,
       status = status,
       error = if (length(messages) == 0L) NA_character_ else paste(messages, collapse = " "),
       converged = fit$converged,
@@ -168,7 +170,8 @@ fit_oracle_population <- function(
     population,
     rank,
     prep = NULL,
-    keep_history = TRUE) {
+    keep_history = TRUE,
+    retain_raw_fit = TRUE) {
 
   if (is.null(prep)) prep <- prepare_population_problem(population)
   fit_zero_penalty_oracle_admm(
@@ -177,7 +180,8 @@ fit_oracle_population <- function(
     covariance_ridge = 0,
     max_iter = ORACLE1_MAX_ITER,
     source_label = "Population",
-    keep_history = keep_history
+    keep_history = keep_history,
+    retain_raw_fit = retain_raw_fit
   )
 }
 

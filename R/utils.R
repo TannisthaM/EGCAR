@@ -102,3 +102,35 @@
   names(out) <- nm
   out
 }
+
+# Validate the native/optimized solver boundary before loading extraction.
+.egcar_check_solver_state <- function(state, context, group, backend) {
+  fields <- if (group) c("C", "Gk", "Gl", "Vk", "Vl") else c("C", "Z", "H")
+  hint <- if (identical(backend, "cpp")) paste0(
+    " Reinstall the patched egcar source package and restart R, including CV workers.") else ""
+  fail <- function(message) stop("EGCAR ", backend, " matrix interface: ", message,
+                                  hint, call. = FALSE)
+  if (!is.list(state) || anyDuplicated(names(state)) ||
+      !all(fields %in% names(state)))
+    fail("the solver did not return the required named state lists.")
+  count <- length(context$edge_k)
+  for (nm in fields) {
+    blocks <- state[[nm]]
+    if (!is.list(blocks) || length(blocks) != count)
+      fail(paste0("state$", nm, " must contain ", count, " edge matrices."))
+    for (j in seq_len(count)) {
+      expected <- as.integer(c(context$p_list[[context$edge_k[[j]]]],
+                               context$p_list[[context$edge_l[[j]]]]))
+      A <- blocks[[j]]
+      if (!is.matrix(A) || !is.numeric(A) || !identical(dim(A), expected)) {
+        observed <- if (is.null(dim(A))) paste0(
+          "a dimensionless ", typeof(A), " object of length ", length(A)) else paste0(
+          "a ", typeof(A), " array with dimensions ", paste(dim(A), collapse = " x "))
+        fail(paste0("state$", nm, "[[", j, "]] (edge ",
+          context$edge_k[[j]], "_", context$edge_l[[j]], ") must be a numeric ",
+          paste(expected, collapse = " x "), " matrix; got ", observed, "."))
+      }
+    }
+  }
+  invisible(TRUE)
+}

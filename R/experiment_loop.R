@@ -53,6 +53,11 @@
     fast_sgca_initializer = FAST_SGCA_INITIALIZER,
     multicca_matrix_backend = MULTICCA_BACKEND,
     loading_factor_cache_max = LOADING_FACTOR_CACHE_MAX,
+    save_fits = SAVE_FITS,
+    save_cv_fold_results = SAVE_CV_FOLD_RESULTS,
+    save_loading_data = SAVE_LOADING_DATA,
+    save_compact_loadings = SAVE_COMPACT_LOADINGS,
+    retain_benchmark_fits = RETAIN_BENCHMARK_FITS,
     make_loading_plots = MAKE_LOADING_PLOTS,
     loading_plot_n = LOADING_PLOT_N,
     loading_plot_ranks = LOADING_PLOT_RANKS,
@@ -74,8 +79,8 @@
   cv_results <- data.frame()
   egcar_cv_fold_results <- data.frame()
   external_cv_fold_results <- data.frame()
-  fits_store <- list()
-  populations <- list()
+  fits_store <- if (SAVE_FITS) list() else NULL
+  populations <- if (SAVE_FITS) list() else NULL
 
   for (rep_id in seq_len(N_REP)) {
     for (rank in RANK_GRID) {
@@ -90,7 +95,7 @@
         seed = population_seed
       )
       pop_tag <- paste0("rep", rep_id, "_r", rank)
-      populations[[pop_tag]] <- population
+      if (SAVE_FITS) populations[[pop_tag]] <- population
 
       # Oracle1 uses the exact population covariance blocks and zero values for
       # both penalty coefficients.  It therefore does not depend on n and is
@@ -100,7 +105,8 @@
         population = population,
         rank = rank,
         prep = population_prep,
-        keep_history = TRUE
+        keep_history = FALSE,
+        retain_raw_fit = SAVE_FITS
       )
       if (!identical(oracle1$status, "ok")) {
         warning(sprintf(
@@ -153,6 +159,7 @@
           row_threshold = ROW_THRESHOLD,
           covariance_ridge = COVARIANCE_RIDGE
         )
+        L_oracle2$C_full <- NULL
         point_rows[[length(point_rows) + 1L]] <- evaluate_method(
           method = "Oracle2-support",
           C = C_oracle2,
@@ -169,12 +176,13 @@
           full_prep,
           rho_e = RATE_C_E * base_e,
           lambda_g = 0,
-          max_iter = MAX_ITER_FINAL
+          max_iter = MAX_ITER_FINAL,
+          keep_state = SAVE_FITS
         )
         time_e_rate <- proc.time()[[3L]] - start
         L_e_rate <- egcar_loading_from_operator(
           full_prep, fit_e_rate$C_hat, rank,
-          ROW_THRESHOLD, COVARIANCE_RIDGE
+          ROW_THRESHOLD, COVARIANCE_RIDGE, keep_full_C = FALSE
         )
         point_rows[[length(point_rows) + 1L]] <- evaluate_method(
           method = "EGCAR-L11-rate",
@@ -230,13 +238,14 @@
           rho_e = 0,
           lambda_g = RATE_C_G * base_g,
           max_iter = MAX_ITER_FINAL,
-          keep_history = TRUE,
-          l21_only = TRUE
+          keep_history = FALSE,
+          l21_only = TRUE,
+          keep_state = SAVE_FITS
         )
         time_g_rate <- proc.time()[[3L]] - start
         L_g_rate <- egcar_loading_from_operator(
           full_prep, fit_g_rate$C_hat, rank,
-          ROW_THRESHOLD, COVARIANCE_RIDGE
+          ROW_THRESHOLD, COVARIANCE_RIDGE, keep_full_C = FALSE
         )
         point_rows[[length(point_rows) + 1L]] <- evaluate_method(
           method = "EGCAR-L21-rate",
@@ -285,14 +294,18 @@
         )
         cv_results <- bind_rows_fill(cv_results, cv_g_table)
 
-        for (label in c("EGCAR-L11-CV", "EGCAR-L21-CV")) {
-          cv_one <- if (label == "EGCAR-L11-CV") cv_e else cv_g
-          tab <- cv_one$cv_fold_table
-          tab$rep <- rep_id; tab$rank <- rank; tab$n <- n; tab$method <- label
-          egcar_cv_fold_results <- bind_rows_fill(egcar_cv_fold_results, tab)
+        if (SAVE_CV_FOLD_RESULTS) {
+          for (label in c("EGCAR-L11-CV", "EGCAR-L21-CV")) {
+            cv_one <- if (label == "EGCAR-L11-CV") cv_e else cv_g
+            tab <- cv_one$cv_fold_table
+            if (nrow(tab)) {
+              tab$rep <- rep_id; tab$rank <- rank; tab$n <- n; tab$method <- label
+              egcar_cv_fold_results <- bind_rows_fill(egcar_cv_fold_results, tab)
+            }
+          }
+          utils::write.csv(egcar_cv_fold_results,
+            file.path(OUT_DIR, "egcar_cv_fold_results.csv"), row.names = FALSE)
         }
-        utils::write.csv(egcar_cv_fold_results,
-          file.path(OUT_DIR, "egcar_cv_fold_results.csv"), row.names = FALSE)
 
         # All four external methods use the SAME shared fold objects/loss.
         # They estimate loading spaces, not C, so C/support metrics remain NA.
@@ -325,7 +338,7 @@
           )
           cv_results <- bind_rows_fill(cv_results, ext_cv)
           ext_folds <- one_benchmark$cv_fold_table
-          if (!is.null(ext_folds) && nrow(ext_folds) > 0L) {
+          if (SAVE_CV_FOLD_RESULTS && !is.null(ext_folds) && nrow(ext_folds) > 0L) {
             ext_folds$rep <- rep_id
             ext_folds$rank <- rank
             ext_folds$n <- n
@@ -356,6 +369,8 @@
           point_loadings[label] <- list(external[[label]]$L)
         }
         point_loadings <- point_loadings[METHOD_ORDER]
+        save_compact_loadings(point_loadings, population, rank, n, rep_id,
+                              do.call(rbind, point_rows))
         if (SAVE_FITS) {
           fits_store[[fit_tag]] <- list(
             Cstar = population$Cstar,
@@ -390,6 +405,10 @@
         cat(sprintf("  selected L21 coefficient: lambda_g=%g; status=%s\n",
           cv_g$lambda_g, cv_g$status))
 
+        rm(views, centered_full, full_prep, fold_id, fold_objects,
+           C_oracle2, L_oracle2, fit_e_rate, L_e_rate, cv_e,
+           fit_g_rate, L_g_rate, cv_g, external, point_rows, point_loadings)
+        gc(verbose = FALSE)
       }
     }
   }

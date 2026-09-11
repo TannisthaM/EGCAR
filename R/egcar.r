@@ -149,8 +149,8 @@ egcar_cv <- function(x, rank = 1L, penalty = c("l11", "l21"),
   timing_start <- proc.time()[[3L]]
   .egcar_with_seed(seed, .egcar_with_threads(control$blas_threads,
     .egcar_with_workers(workers, {
-      rows <- e$parallel_map_candidates(seq_len(data$nfolds), function(f) {
-        fo <- data$folds[[f]]
+      rows <- e$parallel_map_candidates(data$folds, function(fo) {
+        f <- fo$fold
         fo$prep$loading_factor_cache <- new.env(parent = emptyenv())
         previous <- NULL
         result <- vector("list", length(lambda))
