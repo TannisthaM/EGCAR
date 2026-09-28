@@ -42,6 +42,8 @@
     sgca_max_iter_init = SGCA_MAX_ITER_INIT,
     sgca_tgd_tol = SGCA_TGD_TOL,
     sgca_max_iter_tgd = SGCA_MAX_ITER_TGD,
+    sgca_time_limit = SGCA_TIME_LIMIT,
+    sgca_time_limit_scope = "one SGCA CV grid and full-sample refit per dataset/rank/replicate",
     rgcca_tau_grid = RGCCA_TAU_GRID,
     rgcca_scheme = RGCCA_SCHEME,
     rgcca_tol = RGCCA_TOL,
@@ -231,8 +233,9 @@
         )
         cv_results <- bind_rows_fill(cv_results, cv_e_table)
 
-        # L21-only EGCAR with the retained group-rate scaling.
+        # L21 rate: frozen pilot-calibrated multiplier, with explicit overrides.
         start <- proc.time()[[3L]]
+        group_zero_bound <- .egcar_l21_zero_bound(full_prep)
         fit_g_rate <- fit_estimator(
           full_prep,
           rho_e = 0,
@@ -243,10 +246,10 @@
           keep_state = SAVE_FITS
         )
         time_g_rate <- proc.time()[[3L]] - start
-        L_g_rate <- egcar_loading_from_operator(
+        L_g_rate <- tryCatch(egcar_loading_from_operator(
           full_prep, fit_g_rate$C_hat, rank,
           ROW_THRESHOLD, COVARIANCE_RIDGE, keep_full_C = FALSE
-        )
+        ), error = function(e) list(valid = FALSE, reason = conditionMessage(e)))
         point_rows[[length(point_rows) + 1L]] <- evaluate_method(
           method = "EGCAR-L21-rate",
           C = fit_g_rate$C_hat,
@@ -258,7 +261,8 @@
           lambda_g = RATE_C_G * base_g,
           c_e = 0, c_g = RATE_C_G,
           converged = fit_g_rate$converged,
-          iterations = fit_g_rate$iterations
+          iterations = fit_g_rate$iterations,
+          rate_zero_bound = group_zero_bound
         )
 
         # L21-only EGCAR: positive, direct one-dimensional CV over lambda_g.

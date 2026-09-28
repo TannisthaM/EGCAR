@@ -3,6 +3,18 @@
 #include <R_ext/Rdynload.h>
 Rcpp::List egcar_native_solve(Rcpp::List context, Rcpp::List state,
                              Rcpp::List controls, bool group, bool verbose);
+Rcpp::NumericVector egcar_native_block_product(Rcpp::List C,
+    Rcpp::IntegerVector edge_k, Rcpp::IntegerVector edge_l,
+    Rcpp::List local, Rcpp::List position, Rcpp::NumericVector v);
+RcppExport SEXP _egcar_egcar_native_block_product(SEXP C, SEXP k, SEXP l,
+                                                SEXP local, SEXP position, SEXP v) {
+  BEGIN_RCPP
+  return Rcpp::wrap(egcar_native_block_product(Rcpp::as<Rcpp::List>(C),
+    Rcpp::as<Rcpp::IntegerVector>(k), Rcpp::as<Rcpp::IntegerVector>(l),
+    Rcpp::as<Rcpp::List>(local), Rcpp::as<Rcpp::List>(position),
+    Rcpp::as<Rcpp::NumericVector>(v)));
+  END_RCPP
+}
 RcppExport SEXP _egcar_egcar_native_solve(SEXP contextSEXP, SEXP stateSEXP,
                                        SEXP controlsSEXP, SEXP groupSEXP,
                                        SEXP verboseSEXP) {
@@ -19,6 +31,7 @@ RcppExport SEXP _egcar_egcar_native_solve(SEXP contextSEXP, SEXP stateSEXP,
   END_RCPP
 }
 static const R_CallMethodDef CallEntries[] = {
+  {"_egcar_egcar_native_block_product", (DL_FUNC) &_egcar_egcar_native_block_product, 6},
   {"_egcar_egcar_native_solve", (DL_FUNC) &_egcar_egcar_native_solve, 5},
   {NULL, NULL, 0}
 };

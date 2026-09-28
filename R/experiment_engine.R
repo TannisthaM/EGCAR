@@ -17,7 +17,8 @@ evaluate_method <- function(
     converged = NA,
     iterations = NA_integer_,
     status = "ok",
-    error_message = NA_character_) {
+    error_message = NA_character_,
+    rate_zero_bound = NA_real_) {
 
   C_full <- if (!is.null(C)) assemble_full_C(C, population$p_list) else NULL
   L <- if (!is.null(loading) && isTRUE(loading$valid)) loading$L else NULL
@@ -42,6 +43,26 @@ evaluate_method <- function(
     euclidean_error <- sigma0_error <- NA_real_
   }
 
+  loading_valid <- !is.null(L) && is.finite(euclidean_error) && is.finite(sigma0_error)
+  zero_solution <- if (is.null(C_full)) NA else all(C_full == 0)
+  selected_rows <- if (!is.null(loading$selected)) length(loading$selected) else
+    if (!is.null(C_full)) sum(row_l2(C_full) > ROW_THRESHOLD) else NA_integer_
+  # Keep genuine external errors/timeouts/skips. Optimizer convergence does
+  # not imply that a requested-rank loading exists, and must remain separate.
+  if (status %in% c("ok", "not_converged")) {
+    if (!loading_valid) {
+      status <- "invalid_loading"
+      error_message <- loading$reason %||% if (isTRUE(zero_solution))
+        "The coefficient estimate is zero; no requested-rank loading exists." else
+        "No valid loading of the requested rank was returned."
+    } else if (identical(converged, FALSE)) {
+      status <- "not_converged"
+      if (is.null(error_message) || is.na(error_message))
+        error_message <- "ADMM did not satisfy its stopping rule."
+    }
+  }
+  if (is.null(error_message)) error_message <- NA_character_
+
   data.frame(
     rep = rep_id,
     rank = rank,
@@ -65,13 +86,19 @@ evaluate_method <- function(
     iterations = iterations,
     status = status,
     error_message = error_message,
+    loading_valid = loading_valid,
+    selected_rows = as.integer(selected_rows),
+    zero_solution = zero_solution,
+    rate_zero_bound = rate_zero_bound,
+    rate_zero_certified = if (is.finite(rate_zero_bound) && is.finite(lambda_g))
+      lambda_g > rate_zero_bound else NA,
     stringsAsFactors = FALSE
   )
 }
 
 fit_estimator <- function(prep, rho_e, lambda_g, max_iter, keep_history = FALSE,
                            init = NULL, check_every = 1L, l21_only = FALSE,
-                           keep_state = TRUE) {
+                           keep_state = TRUE, compact_state = TRUE) {
   if (isTRUE(l21_only)) {
     if (length(rho_e) != 1L || !is.finite(rho_e) || rho_e != 0)
       stop("L21-only EGCAR requires rho_e = 0.")
@@ -79,7 +106,7 @@ fit_estimator <- function(prep, rho_e, lambda_g, max_iter, keep_history = FALSE,
       abs_tol = ABS_TOL, rel_tol = REL_TOL, adaptive_mu = ADAPTIVE_MU,
       group_zero_tol = GROUP_ZERO_TOL, entry_zero_tol = ENTRY_ZERO_TOL,
       init = init, check_every = check_every, keep_history = keep_history,
-      keep_state = keep_state))
+      keep_state = keep_state, compact_state = compact_state))
   }
   if (length(lambda_g) != 1L || !is.finite(lambda_g) || lambda_g != 0)
     stop("L11-only EGCAR requires lambda_g = 0; combined penalties are not supported.")
@@ -101,7 +128,7 @@ cross_validate_penalties <- function(
   if (nfold < 2L) stop("At least two shared folds are required.")
   path_order <- order(grid, decreasing = TRUE)
   tuning_start <- proc.time()[[3L]]
-  per_fold <- parallel_map_candidates(fold_objects, function(fo) {
+  fold_task <- function(fo) {
     set_blas_threads_one()
     f <- fo$fold
     fo$prep$loading_factor_cache <- new.env(parent = emptyenv())
@@ -113,12 +140,13 @@ cross_validate_penalties <- function(
       one <- tryCatch(withCallingHandlers({
         fit <- fit_estimator(fo$prep, rho_e = if (group) 0 else grid[[j]],
           lambda_g = if (group) grid[[j]] else 0, max_iter = max_iter_cv,
-          init = previous, check_every = check_every, l21_only = group)
+          init = previous, check_every = check_every, l21_only = group,
+          compact_state = TRUE)
         loading <- egcar_loading_from_operator(fo$prep, fit$C_hat, rank,
           ROW_THRESHOLD, COVARIANCE_RIDGE, require_positive = TRUE, keep_full_C = FALSE)
         score <- if (isTRUE(loading$valid)) validation_score(loading$L, fo$validation) else -Inf
         list(score = score, converged = fit$converged, iterations = fit$iterations,
-          state = fit[if (group) c("C", "G", "V") else c("C", "Z", "H")],
+          state = egcar_warm_state(fit, group),
           error = if (!isTRUE(loading$valid)) loading$reason else
             if (!is.finite(score)) "Non-finite validation score." else NA_character_)
       }, warning = function(w) {
@@ -135,7 +163,12 @@ cross_validate_penalties <- function(
         stringsAsFactors = FALSE)
     }
     do.call(rbind, rows)
-  })
+  }
+  environment(fold_task) <- list2env(list(grid = grid, rank = rank, group = group,
+    max_iter_cv = max_iter_cv, check_every = check_every, path_order = path_order),
+    parent = environment(cross_validate_penalties))
+  fold_inputs <- lapply(fold_objects, function(fo) { fo$train_views <- NULL; fo })
+  per_fold <- parallel_map_candidates(fold_inputs, fold_task)
   fold_table <- do.call(rbind, per_fold)
   table <- summarize_loading_cv(data.frame(lambda = grid, candidate = seq_along(grid)),
                                  fold_table, nfold)

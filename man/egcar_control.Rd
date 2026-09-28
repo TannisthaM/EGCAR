@@ -11,17 +11,18 @@ egcar_control(
     adapt_every = 10L, check_every = 1L, check_every_cv = 5L,
     row_threshold = 1e-4, covariance_ridge = 1e-4,
     group_zero_tol = 1e-8, entry_zero_tol = 1e-10,
-    partial_eigen = TRUE, partial_eigen_min = 128L,
+    partial_eigen = TRUE, partial_eigen_min = 2L,
     loading_cache_max = 4L, keep_history = FALSE,
-    keep_full_C = FALSE, blas_threads = 1L, verbose = FALSE)
+    keep_full_C = FALSE, blas_threads = 1L, verbose = FALSE,
+  loading_cache_max_bytes = 64 * 1024^2, compact_state = TRUE)
 
 benchmark_control(
     sgca_eta = 0.001, sgca_ridge = 1e-6, sgca_init_tol = 5e-3,
-    sgca_init_max_iter = 1000L, sgca_tgd_tol = 1e-6,
-    sgca_tgd_max_iter = 15000L, fast_sgca_initializer = TRUE,
+    sgca_init_max_iter = Inf, sgca_tgd_tol = 1e-6,
+    sgca_tgd_max_iter = Inf, fast_sgca_initializer = TRUE,
     rgcca_scheme = "factorial", rgcca_tol = 1e-8, rgcca_max_iter = 1000L,
     multicca_niter = 25L, multicca_backend = c("gram", "PMA"),
-    align_signs = TRUE)
+    align_signs = TRUE, sgca_time_limit = 6 * 60 * 60)
 }
 \arguments{
 \item{backend}{Compiled \code{"cpp"}, accelerated \code{"R"}, or dense \code{"reference"}. All use the same statistical objectives. A source installation still needs a compiler even when selecting the R backend.}
@@ -34,15 +35,18 @@ benchmark_control(
 \item{row_threshold}{Row-norm threshold used for localized loading extraction.}
 \item{covariance_ridge}{Ridge multiplier times the mean selected marginal variance. It regularizes loading normalization, not the regression loss.}
 \item{group_zero_tol, entry_zero_tol}{Numerical output cutoffs inherited from the supplied implementation; not additional regularization penalties.}
-\item{partial_eigen, partial_eigen_min}{Enable checked RSpectra loading eigensolves and set their minimum selected dimension. Dense fallback is used when unavailable or a check fails.}
+\item{partial_eigen, partial_eigen_min}{Enable matrix-free RSpectra loading eigensolves and set their minimum selected dimension. The default computes only the leading rank eigenpairs when rank is smaller than the selected dimension. Failure never triggers an automatic dense fallback. FALSE explicitly enables dense diagnostic extraction.}
 \item{loading_cache_max}{Maximum number of cached support-specific loading factorizations.}
+\item{loading_cache_max_bytes}{Maximum total estimated bytes in the loading-factor cache. Defaults to 64 MiB; zero disables caching. This does not limit active-factorization or solver memory.}
+\item{compact_state}{Retain compressed Hk/Hl/a group warm-start state. FALSE reconstructs legacy view-wide G/V output; optimized iterations still use compressed state.}
 \item{keep_history}{Record the group-only ADMM objective history. The entrywise solvers do not record histories.}
 \item{keep_full_C}{Retain the assembled operator with valid loading results. Edge blocks are always retained.}
 \item{blas_threads}{Optional scoped BLAS/OpenMP thread limit when RhpcBLASctl is installed. NULL leaves thread settings untouched.}
 \item{verbose}{Print solver progress.}
 \item{sgca_eta, sgca_ridge}{SGCA gradient step parameter and initializer metric ridge.}
-\item{sgca_init_tol, sgca_init_max_iter}{SGCA initializer tolerance and iteration limit.}
-\item{sgca_tgd_tol, sgca_tgd_max_iter}{Penalized SGCA gradient-mapping tolerance and iteration limit.}
+\item{sgca_init_tol, sgca_init_max_iter}{SGCA initializer tolerance and optional iteration limit. Inf removes the iteration limit.}
+\item{sgca_tgd_tol, sgca_tgd_max_iter}{Penalized SGCA gradient-mapping tolerance and optional iteration limit. Inf removes the iteration limit.}
+\item{sgca_time_limit}{Elapsed seconds for one complete SGCA CV grid and final refit, including initialization. Defaults to six hours. A supervised R process can terminate compiled operations. Shared data preparation precedes the budget. Inf disables supervision. Startup and process cleanup can add overhead.}
 \item{fast_sgca_initializer}{Use cached matrix algebra for the bundled SGCA initializer; FALSE selects its direct reference implementation.}
 \item{rgcca_scheme, rgcca_tol, rgcca_max_iter}{RGCCA-family package solver controls. The supplied benchmark uses factorial scheme.}
 \item{multicca_niter, multicca_backend}{MultiCCA iteration limit and cached-Gram or public-PMA implementation.}

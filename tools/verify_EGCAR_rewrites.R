@@ -27,6 +27,7 @@ verify_egcar_rewrites <- function(local_script, output_dir = "egcar_rewrite_chec
     max_iter_cv = 30L, max_iter_final = 60L, oracle1_max_iter = 60L,
     sgca_k_grid = c(6L, 12L), sgca_rho_grid = c(0.01, 0.1),
     sgca_lambda_grid = c(0.1, 1), sgca_max_iter_init = 40L, sgca_max_iter_tgd = 80L,
+    sgca_time_limit = Inf,
     rgcca_tau_grid = c(0.1, 1), sgcca_sparsity_grid = c(0.6, 1),
     multicca_l1_grid = c(1.5, 2), rgcca_max_iter = 80L, multicca_niter = 10L,
     run_external_benchmarks = has_comparisons,
@@ -38,15 +39,24 @@ verify_egcar_rewrites <- function(local_script, output_dir = "egcar_rewrite_chec
   # Verify function bodies and formals, not environment addresses.
   defs <- env$run_local_egcar_experiments(file.path(output_dir, "definitions"),
     workers = 1L, config = cfg, backend = "R", definitions_only = TRUE)
-  routine_names <- c("sgca_common_cv", "rgcca_family_common_cv", "rgcca_common_cv",
-    "sgcca_common_cv", "multicca_common_cv", "cross_validate_loading_grid",
-    "validation_score", "sgca_tgd_penalized", "multicca_gram_fit")
+  routine_names <- c("rgcca_family_common_cv", "rgcca_common_cv",
+    "sgcca_common_cv", "multicca_common_cv", "multicca_gram_fit")
+  # SGCA and common CV have timeout plumbing in 0.2.13; compare their
+  # numerical results below with identical finite caps, not their bodies.
   for (nm in routine_names) {
     a <- get(nm, defs, inherits = FALSE); b <- get(nm, ns, inherits = FALSE)
     if (!identical(deparse(formals(a), width.cutoff = 500L), deparse(formals(b), width.cutoff = 500L)) ||
         !identical(deparse(body(a), width.cutoff = 500L), deparse(body(b), width.cutoff = 500L)))
       stop("Local/package function mismatch: ", nm)
   }
+  # 0.2.11 adds data-space scoring; compare values with the frozen dense
+  # standalone scorer instead of requiring identical implementation bodies.
+  set.seed(211)
+  score_views <- list(matrix(rnorm(7 * 9), 7, 9), matrix(rnorm(7 * 6), 7, 6))
+  score_L <- matrix(rnorm(15 * 2), 15, 2)
+  score_old <- defs$validation_score(score_L, defs$make_validation_covariance(score_views))
+  score_new <- get("validation_score", ns)(score_L, get("make_validation_covariance", ns)(score_views))
+  assert_close(score_old, score_new, "Dense/data-space validation score")
   native <- list()
   for (be in c("R", "cpp")) {
     a <- suppressWarnings(env$run_local_egcar_experiments(

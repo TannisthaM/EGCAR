@@ -28,6 +28,7 @@ run_egcar_experiments <- function(
   bm <- benchmark_control(sgca_eta = config$sgca_eta, sgca_ridge = config$sgca_ridge_b,
     sgca_init_tol = config$sgca_init_tol, sgca_init_max_iter = config$sgca_max_iter_init,
     sgca_tgd_tol = config$sgca_tgd_tol, sgca_tgd_max_iter = config$sgca_max_iter_tgd,
+    sgca_time_limit = config$sgca_time_limit,
     fast_sgca_initializer = config$fast_sgca_initializer, rgcca_scheme = config$rgcca_scheme,
     rgcca_tol = config$rgcca_tol, rgcca_max_iter = config$rgcca_max_iter,
     multicca_niter = config$multicca_niter, multicca_backend = config$multicca_backend,

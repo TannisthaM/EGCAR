@@ -4,8 +4,15 @@ fit_l21_admm <- function(prep, lambda_g, mu_g = 1, max_iter = 2000L,
     abs_tol = 1e-5, rel_tol = 1e-4, adaptive_mu = TRUE, balance_ratio = 10,
     scale_factor = 2, adapt_every = 10L, group_zero_tol = 1e-8,
     entry_zero_tol = 1e-10, init = NULL, keep_history = FALSE,
-    verbose = FALSE, check_every = 1L, keep_state = TRUE) {
+    verbose = FALSE, check_every = 1L, keep_state = TRUE, compact_state = FALSE) {
   if (EGCAR_BACKEND == "reference") {
+    if (all(c("Hk", "Hl", "a") %in% names(init)))
+      init <- egcar_expand_group_state(egcar_get_context(prep), init)
+    if (all(c("Gk", "Gl", "Vk", "Vl") %in% names(init))) {
+      z <- egcar_get_context(prep)
+      init$G <- egcar_view_copies(z, init$Gk, init$Gl)
+      init$V <- egcar_view_copies(z, init$Vk, init$Vl)
+    }
     out <- fit_l21_admm_reference(
       prep, lambda_g, mu_g, max_iter, abs_tol, rel_tol, adaptive_mu, balance_ratio,
       scale_factor, adapt_every, group_zero_tol, entry_zero_tol, init,
@@ -19,7 +26,7 @@ fit_l21_admm <- function(prep, lambda_g, mu_g = 1, max_iter = 2000L,
   s <- a$state; z <- a$context; names(s$C) <- z$keys
   # Compute active rows directly from endpoint group copies. The larger
   # view-wide G/V matrices are only materialized when warm-start state is needed.
-  active_rows <- lapply(egcar_group_norms(z, s$Gk, s$Gl),
+  active_rows <- lapply(Map(`*`, egcar_group_norms(z, s$Hk, s$Hl), s$a),
                         function(x) x > group_zero_tol)
   C_hat <- lapply(s$C, function(A) { A[abs(A) < entry_zero_tol] <- 0; A })
   for (e in seq_along(z$edge_k)) {
@@ -37,10 +44,27 @@ fit_l21_admm <- function(prep, lambda_g, mu_g = 1, max_iter = 2000L,
     rho_e = 0, lambda_g = lambda_g, mu_g = a$mu, history = history)
   if (keep_state) {
     out$C <- s$C
-    out$G <- egcar_view_copies(z, s$Gk, s$Gl)
-    out$V <- egcar_view_copies(z, s$Vk, s$Vl)
+    if (compact_state) {
+      fields <- c("Hk", "Hl", "a")
+      out[fields] <- s[fields]
+    } else {
+      legacy <- egcar_expand_group_state(z, s)
+      out$G <- egcar_view_copies(z, legacy$Gk, legacy$Gl)
+      out$V <- egcar_view_copies(z, legacy$Vk, legacy$Vl)
+    }
   }
   out
+}
+
+# Explicit compatibility conversion; ordinary fits and CV retain Hk/Hl/a.
+egcar_expand_group_state <- function(z, s) {
+  if (is.null(s[["a"]])) return(s)
+  E <- seq_along(z$edge_k)
+  list(C = s$C,
+    Gk = lapply(E, function(e) s$Hk[[e]] * s$a[[z$edge_k[[e]]]]),
+    Gl = lapply(E, function(e) sweep(s$Hl[[e]], 2L, s$a[[z$edge_l[[e]]]], "*")),
+    Vk = lapply(E, function(e) s$Hk[[e]] * (1 - s$a[[z$edge_k[[e]]]])),
+    Vl = lapply(E, function(e) sweep(s$Hl[[e]], 2L, 1 - s$a[[z$edge_l[[e]]]], "*")))
 }
 
 # Coerce one edge block to its mathematically known p_k x p_l shape.

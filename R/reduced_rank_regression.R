@@ -31,7 +31,7 @@ egcar_solve_R <- function(z, s, ctl, group, verbose = FALSE) {
   converged <- FALSE; rp <- rd <- Inf; ep <- ed <- NA_real_
   history <- if (ctl$history && group) matrix(NA_real_, ctl$max_iter, 7L) else NULL
   h <- 0L
-  Ct <- Wk <- Wl <- vector("list", length(E))
+  Ct <- if (ctl$history && group) vector("list", length(E)) else NULL
   for (it in seq_len(ctl$max_iter)) {
     check <- it == 1L || it == ctl$max_iter || it %% ctl$check_every == 0L
     shift <- if (group) 2 * mu else mu
@@ -39,13 +39,19 @@ egcar_solve_R <- function(z, s, ctl, group, verbose = FALSE) {
       den <- lapply(z$D, function(D) D + shift); last_shift <- shift
     }
     rp2 <- rd2 <- nc2 <- nz2 <- ny2 <- 0
+    if (group) normsq <- lapply(z$p_list, numeric)
     for (e in E) {
-      T <- if (group) (s$Gk[[e]] - s$Vk[[e]] + s$Gl[[e]] - s$Vl[[e]]) / 2 else
-        s$Z[[e]] - s$H[[e]]
+      if (group) {
+        k <- z$edge_k[[e]]; l <- z$edge_l[[e]]
+        T <- if (!is.null(s[["a"]])) ((2 * s$a[[k]] - 1) * s$Hk[[e]] +
+          sweep(s$Hl[[e]], 2L, 2 * s$a[[l]] - 1, "*")) / 2 else
+          (s$Gk[[e]] - s$Vk[[e]] + s$Gl[[e]] - s$Vl[[e]]) / 2
+      } else T <- s$Z[[e]] - s$H[[e]]
       Pt <- egcar_project(z, e, T)
-      Ct[[e]] <- (z$St[[e]] + shift * Pt) / den[[e]]
-      s$C[[e]] <- if (z$full[[e]]) egcar_lift(z, e, Ct[[e]]) else
-        T + z$remainder[[e]] / shift + egcar_lift(z, e, Ct[[e]] - Pt)
+      Cte <- (z$St[[e]] + shift * Pt) / den[[e]]
+      if (ctl$history && group) Ct[[e]] <- Cte
+      s$C[[e]] <- if (z$full[[e]]) egcar_lift(z, e, Cte) else
+        T + z$remainder[[e]] / shift + egcar_lift(z, e, Cte - Pt)
       if (!group) {
         W <- s$C[[e]] + s$H[[e]]
         Zn <- soft_threshold(W, ctl$penalty / mu)
@@ -58,31 +64,44 @@ egcar_solve_R <- function(z, s, ctl, group, verbose = FALSE) {
         }
         s$Z[[e]] <- Zn; s$H[[e]] <- Hn
       } else {
-        Wk[[e]] <- s$C[[e]] + s$Vk[[e]]
-        Wl[[e]] <- s$C[[e]] + s$Vl[[e]]
+        k <- z$edge_k[[e]]; l <- z$edge_l[[e]]
+        W <- s$C[[e]] + if (!is.null(s[["a"]])) (1 - s$a[[k]]) * s$Hk[[e]] else s$Vk[[e]]
+        normsq[[k]] <- normsq[[k]] + rowSums(W * W)
+        W <- s$C[[e]] + if (!is.null(s[["a"]])) sweep(s$Hl[[e]], 2L, 1 - s$a[[l]], "*") else s$Vl[[e]]
+        normsq[[l]] <- normsq[[l]] + colSums(W * W)
       }
     }
     if (group) {
-      norms <- egcar_group_norms(z, Wk, Wl)
+      norms <- lapply(normsq, sqrt)
       threshold <- ctl$penalty / mu
       mult <- if (threshold <= 0) lapply(z$p_list, function(pk) rep.int(1, pk)) else
         lapply(norms, function(nr) pmax(0, 1 - threshold / pmax(nr, .Machine$double.eps)))
+      compressed <- !is.null(s[["a"]])
+      if (!compressed) {
+        # An arbitrary legacy warm start becomes compressible after this step.
+        s$Hk <- vector("list", length(E)); s$Hl <- vector("list", length(E))
+      }
       for (e in E) {
         k <- z$edge_k[[e]]; l <- z$edge_l[[e]]
-        Gkn <- Wk[[e]] * mult[[k]]
+        Wk <- s$C[[e]] + if (compressed) (1 - s$a[[k]]) * s$Hk[[e]] else s$Vk[[e]]
+        Wl <- s$C[[e]] + if (compressed) sweep(s$Hl[[e]], 2L, 1 - s$a[[l]], "*") else s$Vl[[e]]
+        Gkn <- Wk * mult[[k]]
         # sweep scales columns; no transpose of the large edge is required.
-        Gln <- sweep(Wl[[e]], 2L, mult[[l]], "*")
-        Vkn <- Wk[[e]] - Gkn; Vln <- Wl[[e]] - Gln
+        Gln <- sweep(Wl, 2L, mult[[l]], "*")
+        Vkn <- Wk - Gkn; Vln <- Wl - Gln
         if (check) {
           rp2 <- rp2 + sum((s$C[[e]] - Gkn)^2) + sum((s$C[[e]] - Gln)^2)
-          rd2 <- rd2 + sum((Gkn - s$Gk[[e]] + Gln - s$Gl[[e]])^2)
+          oldGk <- if (compressed) s$a[[k]] * s$Hk[[e]] else s$Gk[[e]]
+          oldGl <- if (compressed) sweep(s$Hl[[e]], 2L, s$a[[l]], "*") else s$Gl[[e]]
+          rd2 <- rd2 + sum((Gkn - oldGk + Gln - oldGl)^2)
           nc2 <- nc2 + 2 * sum(s$C[[e]]^2)
           nz2 <- nz2 + sum(Gkn^2) + sum(Gln^2)
           ny2 <- ny2 + sum((Vkn + Vln)^2)
         }
-        s$Gk[[e]] <- Gkn; s$Gl[[e]] <- Gln
-        s$Vk[[e]] <- Vkn; s$Vl[[e]] <- Vln
+        s$Hk[[e]] <- Wk; s$Hl[[e]] <- Wl
       }
+      s$a <- mult
+      s[c("Gk", "Gl", "Vk", "Vl")] <- NULL
     }
     if (check) {
       rp <- sqrt(rp2); rd <- mu * sqrt(rd2)
@@ -104,8 +123,12 @@ egcar_solve_R <- function(z, s, ctl, group, verbose = FALSE) {
         if (factor != 1) {
           mu <- mu * factor
           if (group) {
-            s$Vk <- lapply(s$Vk, function(A) A / factor)
-            s$Vl <- lapply(s$Vl, function(A) A / factor)
+            scale <- lapply(s$a, function(a) a + (1 - a) / factor)
+            for (e in E) {
+              s$Hk[[e]] <- s$Hk[[e]] * scale[[z$edge_k[[e]]]]
+              s$Hl[[e]] <- sweep(s$Hl[[e]], 2L, scale[[z$edge_l[[e]]]], "*")
+            }
+            s$a <- Map(`/`, s$a, scale)
           } else s$H <- lapply(s$H, function(A) A / factor)
         }
       }
@@ -147,7 +170,7 @@ egcar_run_solver <- function(prep, ctl, init, group, verbose = FALSE) {
   # the exact edge dimensions known from the prepared problem. The current
   # native API already returns matrices explicitly, so this is normally a no-op.
   raw$state <- .egcar_normalize_solver_state(raw$state, z, group)
-  if (EGCAR_BACKEND == "cpp" && !is.null(raw$matrix_api) && !identical(raw$matrix_api, 2L))
+  if (EGCAR_BACKEND == "cpp" && !identical(raw$matrix_api, 3L))
     stop("EGCAR native matrix API mismatch. Reinstall the patched egcar source ",
          "package and restart R, including CV workers.", call. = FALSE)
   .egcar_check_solver_state(raw$state, z, group, EGCAR_BACKEND)
@@ -172,6 +195,7 @@ egcar_run_solver <- function(prep, ctl, init, group, verbose = FALSE) {
     args$lambda_g <- lambda; args$mu_g <- control$mu
     args$group_zero_tol <- control$group_zero_tol; args$keep_history <- history
     args$keep_state <- keep_state
+    args$compact_state <- cv || control$compact_state
     do.call(e$fit_l21_admm, args)
   }
 }

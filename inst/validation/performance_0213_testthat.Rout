@@ -1,0 +1,45 @@
+
+R version 4.3.3 (2024-02-29) -- "Angel Food Cake"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(testthat)
+> library(egcar)
+> 
+> test_check("egcar")
+The reference l11 solver does not record objective histories.
+The reference l11 solver does not record objective histories.
+The reference l11 solver does not record objective histories.
+Core package checks passed.
+Output: /tmp/Rtmpk0tfmu/egcar-test-1b45ab444d2
+CV workers per method: 1 of 1 requested; folds=2; repetitions=1
+
+rep=1  r=1  n=18
+  selected L11 coefficient: rho_e=0.01; status=not_converged
+  selected L21 coefficient: lambda_g=0.01; status=not_converged
+
+Completed. Main output file:
+/tmp/Rtmpk0tfmu/egcar-test-1b45ab444d2/egcar_simulation.rds 
+[ FAIL 0 | WARN 0 | SKIP 1 | PASS 815 ]
+
+══ Skipped tests (1) ═══════════════════════════════════════════════════════════
+• Set EGCAR_TEST_OPTIONAL=true to run optional comparisons. (1):
+  'test-optional-comparisons.R:2:3'
+
+[ FAIL 0 | WARN 0 | SKIP 1 | PASS 815 ]
+> 
+> proc.time()
+   user  system elapsed 
+ 11.767   0.657  15.847 

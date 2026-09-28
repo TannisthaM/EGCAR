@@ -49,8 +49,9 @@ benchmark_dependencies <- function() {
     parameters$penalty_grid <- seq(1, min(sqrt(data$p_list)), length.out = 10L)
   f <- switch(method, SGCA = e$sgca_common_cv, RGCCA = e$rgcca_common_cv,
               SGCCA = e$sgcca_common_cv, MultiCCA = e$multicca_common_cv)
+  supervisor_workers <- if (method == "SGCA" && is.finite(benchmarks$sgca_time_limit)) 1L else workers
   .egcar_with_seed(seed, .egcar_with_threads(control$blas_threads,
-    .egcar_with_workers(workers, {
+    .egcar_with_workers(supervisor_workers, {
       out <- do.call(f, c(list(full_views = data$views, full_prep = data$full$prep,
         fold_objects = data$folds, rank = as.integer(rank), seed = seed,
         parallel_folds = workers > 1L), parameters))
@@ -247,6 +248,7 @@ cross_validate_loading_grid <- function(
   p <- full_prep$p
   seed_for <- function(f) as.integer((as.double(seed) + 1009 * f) %% 2147483646 + 1)
   tuning_start <- proc.time()[[3L]]
+  if (identical(label, "SGCA")) sgca_budget_phase("cv")
 
   per_fold_fun <- function(fo) {
     set_blas_threads_one()
@@ -326,6 +328,7 @@ cross_validate_loading_grid <- function(
   }
 
   best <- cv_table[best_index, , drop = FALSE]
+  if (identical(label, "SGCA")) sgca_budget_phase("refit", tuning_time)
   fit_start <- proc.time()[[3L]]
   final_notes <- character(0)
   final_out <- tryCatch(withCallingHandlers({

@@ -30,6 +30,6 @@ EGCAR_L11_Rate <- function(x, rank = 1L, multiplier = 1, control = egcar_control
 }
 #' @rdname EGCAR_methods
 #' @export
-EGCAR_L21_Rate <- function(x, rank = 1L, multiplier = 1, control = egcar_control()) {
+EGCAR_L21_Rate <- function(x, rank = 1L, multiplier = NULL, control = egcar_control()) {
   egcar_rate(x, rank = rank, penalty = "l21", multiplier = multiplier, control = control)
 }

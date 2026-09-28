@@ -19,7 +19,12 @@
 #' cached by fold and direct rho. The subsequent penalized thresholded-gradient
 #' implementation is the one in the supplied script, including backtracking and
 #' no per-iteration metric normalization; the supplied local-experiment CV and TGD routines are retained.
-#' It tunes k, rho and lambda jointly.
+#' It tunes k, rho and lambda jointly. By default one six-hour elapsed-time budget
+#' covers the entire SGCA CV grid and refit. Both iteration caps default to Inf.
+#' On timeout, status is time_limit, converged is FALSE, and no loading is
+#' returned. Timeout is a computational outcome, not proof of mathematical
+#' nonconvergence. Supervision adds a separate R process and input transfer.
+#' Shared data preparation is outside this budget.
 #'
 #' RGCCA and SGCCA use the public \code{RGCCA::rgcca} solver with variable/block
 #' scaling disabled. They use \code{astar} loadings mapping original centered data
@@ -155,7 +160,11 @@ sgca_tgd_penalized <- function(
   total_backtracks <- 0L
   relative_mapping <- Inf
 
-  for (iter in seq_len(max_iter)) {
+  # A repeatable elapsed-time budget is enforced by the SGCA supervisor.
+  # A while loop permits max_iter=Inf without allocating an iteration sequence.
+  iter <- 0
+  while (iter < max_iter) {
+    iter <- iter + 1
     grad <- -AW + BW %*% (crossprod(W, BW) - lambda_I)
     if (any(!is.finite(grad))) stop("Non-finite SGCA gradient.")
     trial_step <- min(2 * eta, 1.25 * step)
@@ -206,7 +215,7 @@ get_sgca_initializer <- function() {
   sgca_init_fixed
 }
 
-sgca_common_cv <- function(
+sgca_common_cv_run <- function(
     full_views, full_prep, fold_objects, rank,
     k_grid = SGCA_K_GRID, rho_grid = SGCA_RHO_GRID,
     lambda_grid = SGCA_LAMBDA_GRID, seed = 1L,

@@ -10,7 +10,7 @@
 `R/experiment_engine.R`, `R/experiment_loop.R`, `R/experiments.R`: full-study orchestration and plots.
 `src/`: compiled native solver and registered Rcpp interface.
 `inst/examples/`: complete runnable examples.
-`inst/standalone/`: matching independent local script; not sourced by package functions.
+`inst/standalone/`: historical independent local script for numerical comparison; not sourced by package functions and not updated with 0.2.11 optimizations.
 `tests/testthat/`: package regression tests.
 `tools/`: installation/checking/equivalence utilities.
 

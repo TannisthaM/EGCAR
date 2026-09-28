@@ -35,12 +35,19 @@ egcar_distance <- function(A, B, rank = ncol(A)) {
 
 validation_score <- function(L, validation, ridge = 1e-8) {
   if (is.null(L) || any(!is.finite(L))) return(-Inf)
-  Q <- symmetrize(crossprod(L, validation$Sigma0 %*% L))
+  if (!is.null(validation$views)) {
+    scores <- lapply(seq_along(validation$views), function(k)
+      validation$views[[k]] %*% L[validation$indices[[k]], , drop = FALSE])
+    Q <- symmetrize(Reduce(`+`, lapply(scores, crossprod)) / validation$n)
+    A <- crossprod(Reduce(`+`, scores)) / validation$n
+  } else {
+    Q <- symmetrize(crossprod(L, validation$Sigma0 %*% L))
+    A <- crossprod(L, validation$Sigma %*% L)
+  }
   scale_diag <- mean(diag(Q))
   if (!is.finite(scale_diag) || scale_diag <= 0) return(-Inf)
   ev <- eigen(Q, symmetric = TRUE)
   d <- pmax(ev$values + ridge * scale_diag, 1e-10)
-  A <- crossprod(L, validation$Sigma %*% L)
   # tr(Q^(-1/2) A Q^(-1/2)) = sum_j (v_j' A v_j) / d_j.
   # No inverse matrix or two extra matrix-matrix products are constructed.
   score <- sum(colSums(ev$vectors * (A %*% ev$vectors)) / d)

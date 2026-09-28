@@ -1,6 +1,7 @@
 // Compare the actual version 0.2.0 and 0.2.1 cores with identical inputs.
 // This does NOT benchmark R, Rcpp mapping, package loading, CV or worker startup.
 #include "native_core.hpp"
+#include "compressed_test_state.hpp"
 #include "reference_020.hpp"
 #include <chrono>
 #include <iostream>
@@ -49,7 +50,8 @@ egcar_020::Control old_control(const Control& c) {
   return z;
 }
 double worst=0, residual_error=0, history_error=0;
-void compare(const Result& a,const egcar_020::Result& b,bool group) {
+void compare(Result a,const egcar_020::Result& b,bool group,const Problem& problem) {
+  a=expanded_group_result(std::move(a),problem,group);
   if(a.iterations!=b.iterations || a.converged!=b.converged || a.mu!=b.mu)
     throw std::runtime_error("Changed convergence/adaptation decisions.");
   auto cmp=[](const std::vector<mat>& aa,const std::vector<mat>& bb) {
@@ -77,7 +79,7 @@ int main(int argc,char** argv) {
     for(bool group:{false,true})for(bool adaptive:{false,true})for(double mu:{.1,.7,3.0})
       for(int check:{1,5,7})for(double lambda:{0.0,.03,3.0}) {
         c.mu=mu;c.penalty=lambda;c.check_every=check;c.adaptive=adaptive;c.history=group;
-        compare(solve(p.now,p.start,c,group),egcar_020::solve(p.old,p.old_start,old_control(c),group),group);++cases;
+        compare(solve(p.now,p.start,c,group),egcar_020::solve(p.old,p.old_start,old_control(c),group),group,p.now);++cases;
       }
   }
   std::cerr<<std::setprecision(17)<<"{\"old_new_cases\":"<<cases
@@ -96,7 +98,7 @@ int main(int argc,char** argv) {
     const int reps=k<2?30:(k<4?8:3), batches=7;
     for(bool group:{false,true}) for(int check:{1,5}) {
       c.check_every=check;auto oc=old_control(c);
-      compare(solve(p.now,p.start,c,group),egcar_020::solve(p.old,p.old_start,oc,group),group);
+      compare(solve(p.now,p.start,c,group),egcar_020::solve(p.old,p.old_start,oc,group),group,p.now);
       std::vector<double> old_times,new_times;
       auto time_new=[&](){auto start=std::chrono::steady_clock::now();
         for(int r=0;r<reps;++r){auto a=solve(p.now,p.start,c,group);sink+=a.primal;}

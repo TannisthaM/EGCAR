@@ -1,0 +1,43 @@
+"file","context","test","nb","failed","skipped","error","warning","user","system","real","passed"
+"test-compressed-operator-0212.R","compressed-operator-0212","compressed ADMM matches independent dense updates, including adaptive mu and legacy starts",408,0,FALSE,FALSE,0,3.155,0.023,3.18,408
+"test-compressed-operator-0212.R","compressed-operator-0212","public compressed state supports cross-backend warm starts and saves two arrays",16,0,FALSE,FALSE,0,0.851999999999999,0.02,0.873,16
+"test-compressed-operator-0212.R","compressed-operator-0212","compact metric actions and native selected products match dense algebra",36,0,FALSE,FALSE,0,0.165999999999999,0,0.165999999999999,36
+"test-compressed-operator-0212.R","compressed-operator-0212","partial eigenpairs select largest algebraic values and never silently fall back",9,0,FALSE,FALSE,0,0.0780000000000003,0,0.077,9
+"test-compressed-operator-0212.R","compressed-operator-0212","both penalties use the matrix-free loading path by default",32,0,FALSE,FALSE,0,0.205,0.00800000000000001,0.213,32
+"test-config-compat-025.R","config-compat-025","legacy experiment configs receive retention defaults",4,0,FALSE,FALSE,0,0.0150000000000006,0,0.0149999999999997,4
+"test-installed-examples.R","installed-examples","all original runnable examples remain installed",12,0,FALSE,FALSE,0,0.0270000000000001,0,0.0279999999999996,12
+"test-l21-rate-0214.R","l21-rate-0214","L21 defaults match the frozen pilot while explicit multipliers are preserved",13,0,FALSE,FALSE,0,0.0680000000000005,0,0.0679999999999996,13
+"test-l21-rate-0214.R","l21-rate-0214","the zero certificate matches the analytic two-scalar optimum",8,0,FALSE,FALSE,0,0.0309999999999997,0,0.0310000000000006,8
+"test-l21-rate-0214.R","l21-rate-0214","the tiled bound includes both endpoints and partial final tiles",1,0,FALSE,FALSE,0,0.0139999999999993,0,0.0140000000000002,1
+"test-l21-rate-0214.R","l21-rate-0214","experiment status distinguishes solver convergence and loading validity",18,0,FALSE,FALSE,0,0.104,0.00399999999999999,0.109,18
+"test-l21-rate-0214.R","l21-rate-0214","the experiment writes invalid L21-rate diagnostics to its failure CSV",5,0,FALSE,FALSE,0,0.624,0.00900000000000001,0.633,5
+"test-matrix-dim-hardening-024.R","matrix-dim-hardening-024","legacy dimensionless edge blocks are restored safely",5,0,FALSE,FALSE,0,0.0129999999999999,0,0.0129999999999999,5
+"test-memory-023.R","memory-023","memory-first experiment defaults are compact",7,0,FALSE,FALSE,0,0.0190000000000001,0,0.0190000000000001,7
+"test-memory-023.R","memory-023","memory retention flags can be restored explicitly",6,0,FALSE,FALSE,0,0.0170000000000003,0,0.0170000000000003,6
+"test-namespace.R","namespace","every relocated numerical-engine function resolves in the namespace",3,0,FALSE,FALSE,0,0.00999999999999979,0.001,0.0100000000000007,3
+"test-namespace.R","namespace","all fitting and comparison entry points remain exported",2,0,FALSE,FALSE,0,0.00900000000000034,0,0.00900000000000034,2
+"test-native-interface-022.R","native-interface-022","solver state dimensions are checked, not silently reconstructed",7,0,FALSE,FALSE,0,0.0270000000000001,0,0.0270000000000001,7
+"test-native-interface-022.R","native-interface-022","a mismatched DLL fails before row norms or loading extraction",1,0,FALSE,FALSE,0,0.00999999999999979,0.00299999999999999,0.0139999999999993,1
+"test-native-interface-022.R","native-interface-022","the native matrix interface and signal-0.8 rank-1/2/5 paths work",6,0,FALSE,FALSE,0,1.169,0.021,1.19,6
+"test-native-interface-022.R","native-interface-022","the focused matrix-interface example is installed and parseable",1,0,FALSE,FALSE,0,0.00300000000000011,0,0.00300000000000011,1
+"test-optional-comparisons.R","optional-comparisons","optional comparison and parallel regression checks pass",1,0,TRUE,FALSE,0,0.00200000000000067,0,0.00199999999999978,0
+"test-performance-0211.R","performance-0211","compact preparation preserves covariances and complete nullspace updates",47,0,FALSE,FALSE,0,0.265000000000001,0.004,0.27,47
+"test-performance-0211.R","performance-0211","data-space validation equals the original dense score",23,0,FALSE,FALSE,0,0.0629999999999997,0.004,0.0670000000000002,23
+"test-performance-0211.R","performance-0211","cached full-support loading roots retain the ridge on the nullspace",16,0,FALSE,FALSE,0,0.0669999999999993,0,0.0670000000000002,16
+"test-performance-0211.R","performance-0211","compact and public group warm starts give the same path",18,0,FALSE,FALSE,0,0.245,0.004,0.249,18
+"test-performance-0211.R","performance-0211","CV task environments contain only fitting inputs",2,0,FALSE,FALSE,0,0.00499999999999989,0,0.00600000000000023,2
+"test-performance-0211.R","performance-0211","wide-fold CV preserves selection against dense-reference fitting",6,0,FALSE,FALSE,0,0.289,0.005,0.293000000000001,6
+"test-performance-0211.R","performance-0211","loading-cache byte limits do not change fitted factors",4,0,FALSE,FALSE,0,0.0129999999999999,0,0.0129999999999999,4
+"test-performance-0211.R","performance-0211","compact fold payloads also work in multisession workers",12,0,FALSE,FALSE,0,0.589,0.049,2.661,12
+"test-regression.R","regression","the updated numerical and public-API regression suite passes",2,0,FALSE,FALSE,0,0.690000000000001,0.033,0.722999999999999,2
+"test-revision-020.R","revision-020","only separate EGCAR families are exposed and CV excludes zero",7,0,FALSE,FALSE,0,0.0239999999999991,0,0.0240000000000009,7
+"test-revision-020.R","revision-020","the SGCA initializer is bundled with all its required helpers",5,0,FALSE,FALSE,0,0.036999999999999,0,0.0370000000000008,5
+"test-revision-020.R","revision-020","a tiny full experiment uses the configured methods and outputs",5,0,FALSE,FALSE,0,0.359999999999999,0.02,0.380999999999998,5
+"test-sgca-budget-0213.R","sgca-budget-0213","SGCA defaults use one six-hour budget with optional iteration caps",15,0,FALSE,FALSE,0,0.0449999999999999,0,0.0460000000000012,15
+"test-sgca-budget-0213.R","sgca-budget-0213","unlimited TGD stops on its numerical criterion",4,0,FALSE,FALSE,0,0.0120000000000005,0,0.0120000000000005,4
+"test-sgca-budget-0213.R","sgca-budget-0213","the supervisor distinguishes success, errors, and elapsed timeout",7,0,FALSE,FALSE,0,0.106999999999999,0.025,0.623000000000001,7
+"test-sgca-budget-0213.R","sgca-budget-0213","supervised and in-process SGCA have the same numerical results",19,0,FALSE,FALSE,0,0.25,0.06,1.704,19
+"test-sgca-budget-0213.R","sgca-budget-0213","a timeout kills spawned R descendants as well as the coordinator",3,0,FALSE,FALSE,0,0.0190000000000001,0.012,2.018,3
+"test-speed-021.R","speed-021","compiled EGCAR preserves full-space reference updates and inputs",51,0,FALSE,FALSE,0,0.497999999999999,0.025,0.522000000000002,51
+"test-speed-021.R","speed-021","compiled EGCAR CV keeps the same folds, candidates and held-out score",12,0,FALSE,FALSE,0,0.792999999999999,0.001,0.794,12
+"test-speed-021.R","speed-021","the single-configuration all-method checker is installed and parseable",2,0,FALSE,FALSE,0,0.0109999999999992,0,0.0109999999999992,2

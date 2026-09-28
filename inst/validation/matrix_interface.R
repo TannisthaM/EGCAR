@@ -56,9 +56,11 @@ run_egcar_matrix_interface_check <- function(workers = 1L, check_cv = TRUE,
     if (family == "l21") {
       assert(is.null(fit$solver$Z) && is.null(fit$solver$H) && fit$rho_e == 0,
              paste0(label, ": L21 must not contain an entrywise penalty/state."))
-      for (k in seq_along(z$p_list)) for (nm in c("G", "V"))
-        matrix_check(fit$solver[[nm]][[k]], z$p_list[[k]],
-          sum(z$p_list) - z$p_list[[k]], paste(label, nm, k))
+      if (!is.null(fit$solver[["a"]])) {
+        state_check(fit$solver, z, TRUE, "cpp")
+      } else for (k in seq_along(z$p_list)) for (nm in c("G", "V"))
+          matrix_check(fit$solver[[nm]][[k]], z$p_list[[k]],
+            sum(z$p_list) - z$p_list[[k]], paste(label, nm, k))
     } else assert(fit$lambda_g == 0, paste0(label, ": L11 must not contain a group penalty."))
     if (!is.null(fit$L)) {
       matrix_check(fit$L, prepared$p, rank, paste(label, "stacked loading"))
@@ -100,18 +102,21 @@ run_egcar_matrix_interface_check <- function(workers = 1L, check_cv = TRUE,
       controls <- e$egcar_controls(0.005, 0.7, 12L, 0, 0, TRUE,
                                   10, 2, 10L, 5L, group)
       got <- native(z, s, controls, group, FALSE)
-      assert(identical(got$matrix_api, 2L),
+      assert(identical(got$matrix_api, 3L),
         "Native matrix API mismatch: reinstall patched egcar and restart R/workers.")
       state_check(got$state, z, group, "cpp")
       reference <- e$egcar_solve_R(z, s, controls, group, FALSE)
       state_check(reference$state, z, group, "r")
-      fields <- if (group) c("C", "Gk", "Gl", "Vk", "Vl") else c("C", "Z", "H")
+      fields <- if (group) c("C", "Hk", "Hl") else c("C", "Z", "H")
       maximum <- 0
       for (nm in fields) for (j in seq_along(z$edge_k)) {
         a <- got$state[[nm]][[j]]; b <- reference$state[[nm]][[j]]
         matrix_check(a, nrow(b), ncol(b), paste(one$label, family, nm, j))
         maximum <- max(maximum, agree(a, b, paste(one$label, family, nm, j)))
       }
+      if (group) for (k in seq_along(z$p_list))
+        maximum <- max(maximum, agree(got$state$a[[k]], reference$state$a[[k]],
+          paste(one$label, family, "row multiplier", k)))
       for (nm in c("primal", "dual", "eps_primal", "eps_dual", "mu"))
         agree(got[[nm]], reference[[nm]], paste(one$label, family, nm))
       assert(identical(got$iterations, reference$iterations) &&

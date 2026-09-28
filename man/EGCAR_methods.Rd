@@ -15,7 +15,7 @@ EGCAR_L11_CV(x, rank = 1L, lambda = 10^seq(-5, 4), fold_id = NULL,
 EGCAR_L21_CV(x, rank = 1L, lambda = 10^seq(-5, 4), fold_id = NULL,
   nfolds = 5L, seed = 1L, workers = 1L, control = egcar_control())
 EGCAR_L11_Rate(x, rank = 1L, multiplier = 1, control = egcar_control())
-EGCAR_L21_Rate(x, rank = 1L, multiplier = 1, control = egcar_control())
+EGCAR_L21_Rate(x, rank = 1L, multiplier = NULL, control = egcar_control())
 }
 \arguments{
 \item{x}{Raw views, a prepared object, or shared CV data.}
@@ -27,7 +27,7 @@ EGCAR_L21_Rate(x, rank = 1L, multiplier = 1, control = egcar_control())
 \item{nfolds}{Number of folds when no labels are supplied.}
 \item{seed}{Random seed for folds and reproducible CV.}
 \item{workers}{Fold-level worker count.}
-\item{multiplier}{Nonnegative multiplier of the inherited rate scaling.}
+\item{multiplier}{Nonnegative multiplier of the inherited rate scaling. L21 defaults to NULL, selecting the frozen independent-pilot coefficient. L11 retains its default of 1. Explicit numeric values are never replaced.}
 }
 \details{L11 adds only the entrywise penalty. L21 adds only
 \eqn{\lambda\sum_k\|M_k(C)\|_{2,1}}, with complete concatenated rows across all

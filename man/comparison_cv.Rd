@@ -42,7 +42,12 @@ multicca_cv(x, rank = 1L, penalty_grid = NULL, fold_id = NULL,
 cached by fold and direct rho. The subsequent penalized thresholded-gradient
 implementation is the one in the supplied script, including backtracking and
 no per-iteration metric normalization; the supplied local-experiment CV and TGD routines are retained.
-It tunes k, rho and lambda jointly.
+It tunes k, rho and lambda jointly. By default one six-hour elapsed-time budget
+covers the entire SGCA CV grid and refit, including initialization. Both iteration
+caps default to Inf. A timeout returns \code{status = "time_limit"},
+\code{converged = FALSE}, and no loading. This is a computational outcome,
+not proof of mathematical nonconvergence. Supervision adds a separate R process
+and input transfer. Shared data preparation is outside this budget.
 
 RGCCA and SGCCA use the public \code{RGCCA::rgcca} solver with variable/block
 scaling disabled. They use \code{astar} loadings mapping original centered data

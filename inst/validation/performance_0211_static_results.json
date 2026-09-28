@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "r_files_delimiter_checked": 59,
+  "native_header_synchronized": true,
+  "public_exports_preserved": true,
+  "plan_nse_fix_preserved": true,
+  "scope": "Lexical/static checks only; R parser and package tests require R"
+}

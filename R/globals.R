@@ -3,8 +3,9 @@
 EGCAR_BACKEND <- "cpp"
 EGCAR_MASTER_BACKEND <- "cpp"
 EGCAR_PARTIAL_EIGEN <- TRUE
-EGCAR_PARTIAL_EIGEN_MIN <- 128L
+EGCAR_PARTIAL_EIGEN_MIN <- 2L
 LOADING_FACTOR_CACHE_MAX <- 4L
+LOADING_FACTOR_CACHE_MAX_BYTES <- 64 * 1024^2
 MU_Z <- 1
 MU_G <- 1
 ABS_TOL <- 1e-5
@@ -24,9 +25,10 @@ SGCA_LAMBDA_GRID <- 10^seq(-5, 4)
 SGCA_ETA <- 0.001
 SGCA_RIDGE_B <- 1e-6
 SGCA_INIT_TOL <- 5e-3
-SGCA_MAX_ITER_INIT <- 1000L
+SGCA_MAX_ITER_INIT <- Inf
 SGCA_TGD_TOL <- 1e-6
-SGCA_MAX_ITER_TGD <- 15000L
+SGCA_MAX_ITER_TGD <- Inf
+SGCA_TIME_LIMIT <- 6 * 60 * 60
 FAST_SGCA_INITIALIZER <- TRUE
 RGCCA_TAU_GRID <- c(1e-6, 1e-3, 0.1, 0.25, 0.5, 0.75, 1)
 RGCCA_SCHEME <- "factorial"
@@ -82,9 +84,16 @@ ALIGN_EXTERNAL_BLOCK_SIGNS <- TRUE
   "prepare_problem",
   "egcar_get_context",
   "egcar_initial_state",
+  "egcar_warm_state",
   "egcar_view_copies",
   "egcar_group_norms",
+  "egcar_expand_group_state",
   "egcar_loading_factors",
+  "egcar_apply_loading_factor",
+  "egcar_apply_loading_metric",
+  "egcar_operator_multiply",
+  "egcar_loading_operator",
+  "egcar_cache_loading_factors",
   "egcar_top_eigen",
   "egcar_loading_from_operator",
   "egcar_solve_R",
@@ -114,6 +123,8 @@ ALIGN_EXTERNAL_BLOCK_SIGNS <- TRUE
   "updateH",
   "Soft",
   "sgca_common_cv",
+  "sgca_common_cv_run",
+  "sgca_budget_phase",
   "rgcca_family_common_cv",
   "rgcca_common_cv",
   "sgcca_common_cv",
@@ -147,6 +158,7 @@ parallel_map_candidates <- function(indices, FUN) lapply(indices, FUN)
   e$EGCAR_PARTIAL_EIGEN <- control$partial_eigen
   e$EGCAR_PARTIAL_EIGEN_MIN <- control$partial_eigen_min
   e$LOADING_FACTOR_CACHE_MAX <- control$loading_cache_max
+  e$LOADING_FACTOR_CACHE_MAX_BYTES <- control$loading_cache_max_bytes
   e$MU_Z <- e$MU_G <- control$mu
   e$ABS_TOL <- control$abs_tol
   e$REL_TOL <- control$rel_tol
@@ -162,6 +174,7 @@ parallel_map_candidates <- function(indices, FUN) lapply(indices, FUN)
   bm <- c(sgca_eta = "SGCA_ETA", sgca_ridge = "SGCA_RIDGE_B",
           sgca_init_tol = "SGCA_INIT_TOL", sgca_init_max_iter = "SGCA_MAX_ITER_INIT",
           sgca_tgd_tol = "SGCA_TGD_TOL", sgca_tgd_max_iter = "SGCA_MAX_ITER_TGD",
+          sgca_time_limit = "SGCA_TIME_LIMIT",
           fast_sgca_initializer = "FAST_SGCA_INITIALIZER",
           rgcca_scheme = "RGCCA_SCHEME", rgcca_tol = "RGCCA_TOL",
           rgcca_max_iter = "RGCCA_MAX_ITER", multicca_niter = "MULTICCA_NITER",
@@ -172,9 +185,37 @@ parallel_map_candidates <- function(indices, FUN) lapply(indices, FUN)
   e$set_blas_threads_one <- function() invisible(NULL)
   dispatcher <- function(indices, FUN) {
     task <- function(i) .egcar_with_threads(BLAS_THREADS, FUN(i))
+    # Do not serialize this dispatch call frame: it also owns every fold.
+    environment(task) <- list2env(list(BLAS_THREADS = BLAS_THREADS, FUN = FUN,
+      .egcar_with_threads = .egcar_with_threads), parent = baseenv())
     if (PARALLEL_CV) {
-      future.apply::future_lapply(indices, task, future.seed = TRUE,
-        future.scheduling = 1, future.packages = "egcar")
+      # future.globals is supplied explicitly (rather than left at its
+      # default TRUE, i.e. auto-detect) so future/globals never has to walk
+      # dispatcher's/task's reassigned environment (environment(dispatcher)
+      # <- e, a hand-built "sandbox" environment, not a normal call frame)
+      # to figure out what task depends on. That automatic walk is what
+      # crashed under future::multicore with "Error in ls(envir = env, ...)
+      # : invalid 'envir' argument" (inside globals' tweak.function), even
+      # though it had always tolerated the same environment shape fine
+      # under future::multisession. multicore (forking) does not actually
+      # need this step at all -- a forked worker already has an identical
+      # copy of e via copy-on-write -- but future runs its export logic
+      # unconditionally regardless of backend, so it still has to be given
+      # something it can handle rather than something it has to discover.
+      # BLAS_THREADS is per-engine-instance runtime state (not part of the
+      # static package namespace, so future.packages="egcar" alone would
+      # not reconstruct it on a fresh multisession worker); FUN is the
+      # actual per-call closure being mapped; .egcar_with_threads is
+      # included explicitly too rather than relying on it being resolved
+      # through e's parent chain post-(de)serialization.
+      future.apply::future_lapply(
+        indices, task, future.seed = TRUE, future.scheduling = 1,
+        future.packages = "egcar",
+        future.globals = list(
+          BLAS_THREADS = BLAS_THREADS, FUN = FUN,
+          .egcar_with_threads = .egcar_with_threads
+        )
+      )
     } else lapply(indices, task)
   }
   environment(dispatcher) <- e

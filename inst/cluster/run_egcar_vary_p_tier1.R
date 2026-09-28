@@ -1,55 +1,57 @@
 #!/usr/bin/env Rscript
 
 # =============================================================================
-# EGCAR Midway3 vary_n -- built entirely on the installed egcar package's own
-# exported functions: egcar::egcar_experiment_config() and
-# egcar::run_egcar_experiments(). These are the SAME two functions used in
-# run_EGCAR_package_signal08_r125.R. No estimator/CV/benchmark statistics are
-# reimplemented in this file -- everything below this point is thin SLURM-
-# array harness (config table + check_packages/install_packages/
-# expected_tasks/task_info/worker/aggregate dispatch) needed to match
-# run_egcar_all_methods_vary_n_array.sh, which is UNCHANGED and needs no
-# edits to work with this file.
+# EGCAR Midway3 vary_p_tier1 -- p1=p2=p3 in {10,100} at n=150, rank 1:5, one replication
 #
-# Grid: n = {200,250,300,500,1000,10000} at p1=p2=p3=100, and
-#       n = {250,300,450,1000,5000,10000} at p1=p2=p3=150 (unchanged),
-# crossed with rank = 1:10 (was 1,2,5) and signal in {0.3,0.5,0.8}
-# (was one fixed 0.8), 10 repetitions.
-#   2 panels x 10 ranks x 3 signals x 6 n-values x 10 reps = 3,600 tasks.
+# Built entirely on the installed egcar package's own exported functions:
+# egcar::egcar_experiment_config() and egcar::run_egcar_experiments(). No
+# estimator/CV/benchmark statistics are reimplemented in this file --
+# everything below is thin SLURM-array harness, matching the matching
+# *_array.sh exactly.
+#
+# Grid: n=150 fixed; p1=p2=p3 in {10,100}; rank=1:5; signal=0.8 fixed
+#   2 p-values x 5 ranks x 10 reps = 100 tasks.
+#
+# rank capped at 1:5 (was 1:10 in the first version of these tiers) because
+# egcar enforces "rank <= active_per_view" (active_per_view=5L here) and
+# rejects anything higher outright -- confirmed via
+# "Each rank must be <= active_per_view and every view dimension." in the
+# first tier1/tier2/tier3 run's logs. Every task in this version is within
+# that bound.
+#
+# TEN REPETITIONS (N_REPS=10) -- unlike the earlier single-replication
+# version of this tier, summary CSV "_se"/"_n" columns now reflect a real
+# 10-draw estimate of variability rather than reading 0 or NA.
+#
+# --mem=20G / --time=24:00:00 for this tier. p_total<=300 here; comfortably within 20G, unchanged from the original tier1.
+#
+# REQUIRES egcar >= 0.2.7. Versions before that will hit either of two
+# confirmed bugs at these problem sizes: a 32-bit integer overflow in
+# egcar_prepare_context() (p_total roughly >1300+), or a >10000-byte
+# environment-key crash in egcar_loading_factors()/loading_metric_factors()
+# (p_total in the low thousands and up, depending on selection density).
+# Both are fixed in 0.2.7 -- check_packages below enforces this version.
 #
 # IMPORTANT ASSUMPTIONS THIS SCRIPT MAKES ABOUT egcar, WHICH I HAVE NOT BEEN
-# ABLE TO VERIFY FROM HERE (no visibility into the installed package):
+# ABLE TO VERIFY FROM HERE (no visibility beyond what was already read/fixed
+# in the package source):
 #   1. egcar::run_egcar_experiments() accepts a config scoped to a SINGLE n,
-#      SINGLE rank, and SINGLE signal (n_grid/rank_grid of length 1) and
-#      n_reps=1, and runs that one datapoint correctly rather than requiring
-#      >=2 grid points.
-#   2. Because n_reps=1 is used per call, this script gives each of the 10
-#      repetitions of the SAME (n,rank,signal) its own master_seed (see
-#      run_worker() below) so they are not identical runs. Whether this
-#      actually produces independent draws depends on how egcar seeds
-#      internally, which I cannot see.
-#   3. Its output directory always contains a file literally named
-#      simulation_results.csv with at least rank, n, method columns (as
-#      required by replot_egcar_error_time() in the driver script you
-#      uploaded).
-#   4. It implements 10 methods (Oracle1-population, Oracle2-support,
+#      SINGLE rank (n_grid/rank_grid of length 1) and n_reps=1, and runs
+#      that one datapoint correctly rather than requiring >=2 grid points.
+#   2. Its output directory always contains a file literally named
+#      simulation_results.csv with at least rank, n, method columns.
+#   3. It implements 10 methods (Oracle1-population, Oracle2-support,
 #      EGCAR-L11-rate, EGCAR-L11-CV, EGCAR-L21-rate, EGCAR-L21-CV, SGCA,
-#      RGCCA, SGCCA, MultiCCA) -- egcar_experiment_config()'s own argument
-#      list has no "tied" penalty option, so that method (present in the
-#      hand-rolled reference-engine version of this script) is NOT expected
-#      here. If your egcar build has grown extra methods, they just appear
-#      as extra rows; nothing below hardcodes exactly 10.
+#      RGCCA, SGCCA, MultiCCA) -- no "tied" penalty variant.
 #
-# RUN THE ONE-TASK SMOKE TEST BEFORE TRUSTING ANY OF THIS AT SCALE. If
-# assumption 1 is wrong, it will fail loudly and immediately on that single
-# task rather than burning 3,600 tasks' worth of compute first.
+# RUN THE ONE-TASK SMOKE TEST BEFORE TRUSTING ANY OF THIS AT SCALE.
 # =============================================================================
 
 options(stringsAsFactors = FALSE, warn = 1)
 `%||%` <- function(x, y) { if (is.null(x) || length(x) == 0L) y else x }
 ARGS <- commandArgs(trailingOnly = TRUE)
 MODE <- if (length(ARGS)) ARGS[[1L]] else "help"
-EXPERIMENT <- "vary_n"
+EXPERIMENT <- "vary_p_tier1"
 
 R_LIB_USER <- path.expand(Sys.getenv("R_LIBS_USER", "~/Rlibs"))
 dir.create(R_LIB_USER, recursive = TRUE, showWarnings = FALSE)
@@ -62,8 +64,9 @@ dir.create(R_LIB_USER, recursive = TRUE, showWarnings = FALSE)
 #    unattended SLURM use.
 # =============================================================================
 
-CRAN_PACKAGES <- c("future", "future.apply", "RGCCA", "PMA", "ggplot2", "remotes")
-EGCAR_MIN_VERSION <- "0.2.5"
+CRAN_PACKAGES <- c("Rcpp", "RcppArmadillo", "RcppEigen", "RSpectra", "callr",
+                   "future", "future.apply", "parallelly", "RGCCA", "PMA", "ggplot2", "remotes")
+EGCAR_MIN_VERSION <- "0.2.14"  # calibrated L21 rate and loading-status diagnostics
 
 install_required_packages <- function() {
   missing <- CRAN_PACKAGES[!vapply(
@@ -162,30 +165,22 @@ check_required_packages <- function(stop_on_missing = TRUE) {
 #    signal are the only dimensions that changed (1:10 and 3 levels).
 # =============================================================================
 
-N_REPS <- 10L
+N_REPS <- 10L  # ten repetitions requested
 MASTER_SEED <- 20260907L
 
 build_configs <- function() {
-  A <- expand.grid(
-    rank = 1:10,
-    signal = c(0.3, 0.5, 0.8),
-    n = c(200L, 250L, 300L, 500L, 1000L, 10000L),
+  # n fixed at 150, signal fixed at 0.8. rank = 1:5 is the swept dimension
+  # within each p value (capped at active_per_view -- see header note);
+  # p_per_block is the other.
+  out <- expand.grid(
+    rank = 1:5,
+    p_per_block = c(10L, 100L),
     KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE
   )
-  A$p_per_block <- 100L
-  A$panel <- "p1=p2=p3=100"
-
-  B <- expand.grid(
-    rank = 1:10,
-    signal = c(0.3, 0.5, 0.8),
-    n = c(250L, 300L, 450L, 1000L, 5000L, 10000L),
-    KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE
-  )
-  B$p_per_block <- 150L
-  B$panel <- "p1=p2=p3=150"
-
-  out <- rbind(A, B)
-  out <- out[order(out$p_per_block, out$signal, out$rank, out$n),
+  out$n <- 150L
+  out$signal <- 0.8
+  out$panel <- "n=150"
+  out <- out[order(out$p_per_block, out$rank),
              c("panel", "p_per_block", "n", "rank", "signal")]
   rownames(out) <- NULL
   out
@@ -277,7 +272,7 @@ run_worker <- function(config_id, rep_id, outdir) {
     rho_e_cv_grid = 10^seq(-5, 4),
     lambda_g_cv_grid = 10^seq(-5, 4),
     rate_c_e = 1,
-    rate_c_g = 1,
+    # Inherit the independently calibrated rate_c_g from egcar >= 0.2.14.
     n_folds = 5L,
 
     mu_z = 1,
@@ -302,9 +297,10 @@ run_worker <- function(config_id, rep_id, outdir) {
     sgca_eta = 0.001,
     sgca_ridge_b = 1e-6,
     sgca_init_tol = 5e-3,
-    sgca_max_iter_init = 1000L,
+    sgca_max_iter_init = Inf,
     sgca_tgd_tol = 1e-6,
-    sgca_max_iter_tgd = 15000L,
+    sgca_max_iter_tgd = Inf,
+    sgca_time_limit = 6 * 60 * 60,
 
     rgcca_tau_grid = c(1e-6, 1e-3, 0.1, 0.25, 0.5, 0.75, 1),
     rgcca_scheme = "factorial",
@@ -425,6 +421,10 @@ aggregate_results <- function(outdir) {
   atomic_csv(S, file.path(outdir, sprintf("summary_mean_over_%d_repetitions.csv", N_REPS)))
 
   if (requireNamespace("ggplot2", quietly = TRUE)) {
+    # n=150 and signal=0.8 are FIXED in this tier (no sweep), so unlike
+    # vary_n's plots (x=n, one plot per rank), here RANK is the dimension
+    # actually swept (1:5) within each p value -- so rank goes on the
+    # x-axis, with one plot per p_per_block value instead.
     make_plot_set <- function(results, omit_oracle1) {
       subdir <- if (omit_oracle1) "plots_without_oracle1" else "plots_all_methods"
       d <- if (omit_oracle1) results[results$method != "Oracle1-population", , drop = FALSE] else results
@@ -439,37 +439,35 @@ aggregate_results <- function(outdir) {
         log_y = c(TRUE, TRUE, TRUE, TRUE, FALSE, FALSE),
         stringsAsFactors = FALSE
       )
-      for (rank_value in sort(unique(d$rank)))
-        for (signal_value in sort(unique(d$signal)))
-          for (j in seq_len(nrow(spec))) {
-            metric <- spec$metric[[j]]
-            dd <- d[d$rank == rank_value & d$signal == signal_value & is.finite(d[[metric]]), , drop = FALSE]
-            if (!nrow(dd)) next
-            groups2 <- split(dd, interaction(dd$panel, dd$p_per_block, dd$n, dd$method, drop = TRUE))
-            pd <- do.call(rbind, lapply(groups2, function(g) data.frame(
-              panel = g$panel[[1L]], n = g$n[[1L]], method = as.character(g$method[[1L]]),
-              mean = mean(g[[metric]]), stringsAsFactors = FALSE
-            )))
-            pd$method <- factor(pd$method, levels = METHOD_ORDER)
-            pd$plot_value <- if (spec$log_y[[j]]) pmax(pd$mean, 1e-12) else pd$mean
-            z <- ggplot2::ggplot(pd, ggplot2::aes(x = n, y = plot_value, color = method, group = method)) +
-              ggplot2::geom_line(linewidth = 0.7, linetype = "solid", na.rm = TRUE) +
-              ggplot2::geom_point(size = 2, shape = 16, na.rm = TRUE) +
-              ggplot2::scale_x_log10() +
-              ggplot2::scale_color_manual(values = METHOD_COLORS) +
-              ggplot2::facet_wrap(~ panel, scales = "free_x", nrow = 1L) +
-              ggplot2::labs(
-                x = "Sample size n", y = spec$label[[j]],
-                title = paste0(spec$label[[j]], ", r = ", rank_value, ", signal = ", signal_value,
-                               if (omit_oracle1) " (Oracle1 omitted)" else " (all methods)"),
-                color = "Method"
-              ) +
-              ggplot2::theme_bw(base_size = 11) + ggplot2::theme(legend.position = "bottom")
-            if (spec$log_y[[j]]) z <- z + ggplot2::scale_y_log10()
-            stem <- paste0(metric, "_rank_", rank_value, "_signal_", format(signal_value, nsmall = 1))
-            ggplot2::ggsave(file.path(output_dir, paste0(stem, ".pdf")), z, width = 12, height = 6.5, device = "pdf")
-            ggplot2::ggsave(file.path(output_dir, paste0(stem, ".png")), z, width = 12, height = 6.5, dpi = 180)
-          }
+      for (p_value in sort(unique(d$p_per_block)))
+        for (j in seq_len(nrow(spec))) {
+          metric <- spec$metric[[j]]
+          dd <- d[d$p_per_block == p_value & is.finite(d[[metric]]), , drop = FALSE]
+          if (!nrow(dd)) next
+          groups2 <- split(dd, interaction(dd$rank, dd$method, drop = TRUE))
+          pd <- do.call(rbind, lapply(groups2, function(g) data.frame(
+            rank = g$rank[[1L]], method = as.character(g$method[[1L]]),
+            mean = mean(g[[metric]]), stringsAsFactors = FALSE
+          )))
+          pd$method <- factor(pd$method, levels = METHOD_ORDER)
+          pd$plot_value <- if (spec$log_y[[j]]) pmax(pd$mean, 1e-12) else pd$mean
+          z <- ggplot2::ggplot(pd, ggplot2::aes(x = rank, y = plot_value, color = method, group = method)) +
+            ggplot2::geom_line(linewidth = 0.7, linetype = "solid", na.rm = TRUE) +
+            ggplot2::geom_point(size = 2, shape = 16, na.rm = TRUE) +
+            ggplot2::scale_x_continuous(breaks = 1:5) +
+            ggplot2::scale_color_manual(values = METHOD_COLORS) +
+            ggplot2::labs(
+              x = "Rank r", y = spec$label[[j]],
+              title = paste0(spec$label[[j]], ", p1=p2=p3=", p_value, ", n=150",
+                             if (omit_oracle1) " (Oracle1 omitted)" else " (all methods)"),
+              color = "Method"
+            ) +
+            ggplot2::theme_bw(base_size = 11) + ggplot2::theme(legend.position = "bottom")
+          if (spec$log_y[[j]]) z <- z + ggplot2::scale_y_log10()
+          stem <- paste0(metric, "_p", p_value)
+          ggplot2::ggsave(file.path(output_dir, paste0(stem, ".pdf")), z, width = 9, height = 6, device = "pdf")
+          ggplot2::ggsave(file.path(output_dir, paste0(stem, ".png")), z, width = 9, height = 6, dpi = 180)
+        }
     }
     make_plot_set(M, FALSE)
     make_plot_set(M, TRUE)
@@ -489,9 +487,9 @@ aggregate_results <- function(outdir) {
 }
 
 # =============================================================================
-# 6. Dispatch -- same CLI shape run_egcar_all_methods_vary_n_array.sh already
-#    expects: check_packages, install_packages, expected_tasks, task_info,
-#    worker, aggregate.
+# 6. Dispatch -- same CLI shape run_egcar_vary_p_tier1_array.sh expects:
+#    check_packages, install_packages, expected_tasks, task_info, worker,
+#    aggregate.
 # =============================================================================
 
 usage <- function() {

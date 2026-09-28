@@ -1,0 +1,9 @@
+"p_per_block","multiplier","scenarios","valid_converged","invalid_loading","not_converged","errors","certified_zero","admm_fits","mean_score_per_rank_valid","mean_selected_fraction_valid","min_selected_fraction_valid","mean_normalized_subspace_error_valid","max_normalized_subspace_error_valid"
+10,0.05,15,15,0,0,0,0,15,1.94437384573884,1,1,0.344967315082974,0.657066826372115
+10,1,15,9,6,0,0,1,14,2.00808758927013,0.718518518518519,0.133333333333333,0.452548665265088,0.841973685917668
+100,0.05,15,15,0,0,0,0,15,1.2827638971921,1,1,0.88148672435948,0.9846145487003
+100,1,15,0,15,0,0,14,1,NA,NA,NA,NA,NA
+500,0.05,15,15,0,0,0,0,15,1.01817147635565,1,1,0.989383907457704,0.999107949886508
+500,1,15,0,15,0,0,15,0,NA,NA,NA,NA,NA
+1000,0.05,15,15,0,0,0,0,15,1.00334100005828,1,1,0.99728230797047,0.99998437981366
+1000,1,15,0,15,0,0,15,0,NA,NA,NA,NA,NA

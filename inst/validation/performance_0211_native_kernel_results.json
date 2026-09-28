@@ -1,0 +1,6 @@
+{
+  "status": "passed",
+  "cases": 56,
+  "max_relative_error": 8.88178e-16,
+  "scope": "Extracted C++ group kernels only; not full Armadillo/Rcpp solver"
+}

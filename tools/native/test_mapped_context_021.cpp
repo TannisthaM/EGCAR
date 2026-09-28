@@ -30,7 +30,7 @@ int main() {
     c.scale_factor=2;c.max_iter=120;c.check_every=5;c.adapt_every=10;c.adaptive=true;c.history=false;
     for(bool group:{false,true}) {
       c.history=group;
-      compare(solve(view,p.start,c,group),egcar_020::solve(p.old,p.old_start,old_control(c),group),group);
+      compare(solve(view,p.start,c,group),egcar_020::solve(p.old,p.old_start,old_control(c),group),group,view);
       ++cases;
     }
     auto same=[](const mat& a,const mat& b) {

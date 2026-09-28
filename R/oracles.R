@@ -80,7 +80,7 @@ prepare_population_problem <- function(population) {
     S_kk = population$Sigma_kk,
     S_kl = population$Sigma_kl,
     eig = eig,
-    q = sum(edge_table$p_k * edge_table$p_l)
+    q = sum(as.double(edge_table$p_k) * edge_table$p_l)
   ))
 }
 

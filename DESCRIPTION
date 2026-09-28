@@ -1,7 +1,8 @@
 Package: egcar
 Type: Package
-Title: Accelerated Sparse Generalized Correlation Analysis via Regression
-Version: 0.2.5
+Title: Accelerated Sparse Generalized Correlation Analysis via
+        Regression
+Version: 0.2.14
 Authors@R: c(person("EGCAR", "Contributors", role = c("aut", "cre"),
     email = "maintainer@example.org"),
     person("Claire", "Donnat", role = "cph",
@@ -18,11 +19,15 @@ Description: Fits separate entrywise and view-wise row-group sparse generalized
 License: GPL-3
 Encoding: UTF-8
 Depends: R (>= 4.0.0)
-Imports: Rcpp, stats, utils
+Imports: Rcpp, RSpectra, callr, stats, utils
 LinkingTo: Rcpp, RcppArmadillo, RcppEigen
-Suggests: future, future.apply, RSpectra, RhpcBLASctl, RGCCA, PMA,
-    ggplot2, remotes, testthat (>= 3.0.0), roxygen2
+Suggests: future, future.apply, parallelly, RhpcBLASctl, RGCCA, PMA,
+        ggplot2, remotes, testthat (>= 3.0.0), roxygen2
 SystemRequirements: C++14
 NeedsCompilation: yes
 Config/testthat/edition: 3
 Roxygen: list(markdown = FALSE)
+Packaged: 2026-09-24 14:04:40 UTC; root
+Author: EGCAR Contributors [aut, cre],
+  Claire Donnat [cph] (Bundled MIT-licensed initializer helpers)
+Maintainer: EGCAR Contributors <maintainer@example.org>

@@ -3,7 +3,7 @@
 args <- commandArgs(trailingOnly = TRUE)
 if (!length(args)) stop("Supply a source archive or package-directory path.")
 path <- normalizePath(args[[1L]], mustWork = TRUE)
-packages <- c("Rcpp", "RcppArmadillo", "RcppEigen")
+packages <- c("Rcpp", "RcppArmadillo", "RcppEigen", "RSpectra", "callr")
 if ("--benchmarks" %in% args) packages <- c(packages,
   "future", "future.apply", "RGCCA", "PMA", "ggplot2", "RSpectra", "RhpcBLASctl")
 missing <- packages[!vapply(packages, requireNamespace, logical(1L), quietly = TRUE)]

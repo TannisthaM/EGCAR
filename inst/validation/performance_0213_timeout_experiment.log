@@ -1,0 +1,14 @@
+Output: /workspace/scratch/fb9ec74c16df/validation_0213/timeout_experiment
+CV workers per method: 1 of 1 requested; folds=2; repetitions=1
+
+rep=1  r=1  n=18
+  SGCA: common-loss CV on 2 shared folds with 1 allocated worker(s)...
+  selected L11 coefficient: rho_e=0.01; status=not_converged
+  selected L21 coefficient: lambda_g=0.01; status=not_converged
+
+Completed. Main output file:
+/workspace/scratch/fb9ec74c16df/validation_0213/timeout_experiment/egcar_simulation.rds 
+ method     status converged total_time
+   SGCA time_limit     FALSE      0.046
+                                                                                                                              error_message
+ SGCA did not converge in real time: the complete CV and refit did not finish within the 2.77778e-06-hour wall-clock budget (0.01 seconds).

@@ -28,3 +28,8 @@ CV and parallel startup. For sanitizer checks use `-O1 -g
 Installing the R package uses RcppArmadillo and RcppEigen's headers instead;
 users do not need separate Armadillo or Eigen installations. No executable or
 third-party header files are distributed in this repository.
+
+In 0.2.12 the test-only `compressed_test_state.hpp` reconstructs legacy endpoint
+G/V arrays when comparing against historical solvers. Production code does not
+include it. The installed-R tests in `test-compressed-operator-0212.R` also check
+the compressed state directly, including arbitrary legacy warm starts.

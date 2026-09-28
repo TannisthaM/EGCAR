@@ -69,7 +69,9 @@ for (penalty in c("l11", "l21")) {
 # Shared folds, training-mean centering, full-grid scoring and loss direction.
 shared <- egcar_cv_data(views, nfolds = 3, seed = 16)
 for (fo in shared$folds) {
-  close(fo$train_means[[1]], colMeans(views[[1]][fo$train_idx, , drop = FALSE]))
+  train_idx <- which(shared$fold_id != fo$fold)
+  m <- colMeans(views[[1]][train_idx, , drop = FALSE])
+  close(fo$train_views[[1]], sweep(views[[1]][train_idx, , drop = FALSE], 2L, m, "-"))
   close(colMeans(fo$train_views[[1]]), rep(0, 4), 1e-12)
 }
 before <- .Random.seed

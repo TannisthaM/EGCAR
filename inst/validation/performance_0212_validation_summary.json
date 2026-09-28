@@ -1,0 +1,24 @@
+{
+  "version": "0.2.12",
+  "R": "4.3.3",
+  "platform": "Ubuntu 24.04, x86_64",
+  "test_expectations_passed": 767,
+  "test_failures": 0,
+  "test_warnings": 0,
+  "optional_suites_skipped": 1,
+  "R_CMD_check_errors": 0,
+  "R_CMD_check_warnings": 0,
+  "R_CMD_check_notes": 3,
+  "compiled_and_installed": true,
+  "native_state_api": 3,
+  "source_numerical_tests": [
+    "compressed vs independent dense ADMM",
+    "adaptive mu and arbitrary legacy warm starts",
+    "matrix-free selected-edge products and metric factors",
+    "largest algebraic eigenpairs, ranks 1/2/5",
+    "serial/multisession/forked CV"
+  ],
+  "benchmark_repetitions": 3,
+  "benchmark_scope": "Serial prepared fits including loading extraction; fixed iteration caps; not full CV sweep",
+  "core_group_state": "3q+p doubles instead of 5q"
+}

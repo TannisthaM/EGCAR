@@ -1,6 +1,15 @@
 # Unchanged dense-reference solvers and original zero-penalty consensus oracle solver.
 
 cache_problem_matrices_reference <- function(prep) {
+  # Compact preparations use thin spectra for wide views. The independent
+  # dense/reference and oracle solvers explicitly request a complete basis.
+  prep$eig <- lapply(seq_along(prep$p_list), function(k) {
+    ev <- prep$eig[[k]]
+    if (!is.null(ev) && ncol(ev$vectors) == prep$p_list[[k]]) return(ev)
+    ev <- eigen(symmetrize(prep$S_kk[[k]]), symmetric = TRUE)
+    ev$values <- pmax(ev$values, 0)
+    ev
+  })
   prep$indices <- make_block_indices(prep$p_list)
   prep$Sigma0 <- block_diag(prep$S_kk)
   prep$eig_products <- lapply(seq_len(nrow(prep$edge_table)), function(e) {
@@ -46,7 +55,7 @@ prepare_problem_reference <- function(centered_views) {
     ee
   })
 
-  cache_problem_matrices(list(
+  cache_problem_matrices_reference(list(
     n = n,
     K = K,
     p_list = p_list,
@@ -56,7 +65,7 @@ prepare_problem_reference <- function(centered_views) {
     S_kk = S_kk,
     S_kl = S_kl,
     eig = eig,
-    q = sum(edge_table$p_k * edge_table$p_l)
+    q = sum(as.double(edge_table$p_k) * edge_table$p_l)
   ))
 }
 
@@ -85,7 +94,7 @@ fit_l11_admm_reference <- function(
   eps_primal <- NA_real_
   eps_dual <- NA_real_
 
-  if (is.null(prep$eig_products)) prep <- cache_problem_matrices(prep)
+  if (is.null(prep$eig_products)) prep <- cache_problem_matrices_reference(prep)
   edge_k <- prep$edge_table$k
   edge_l <- prep$edge_table$l
   edge_keys <- prep$edge_table$key
@@ -232,7 +241,7 @@ fit_l21_admm_reference <- function(
   eps_primal <- NA_real_
   eps_dual <- NA_real_
 
-  if (is.null(prep$eig_products)) prep <- cache_problem_matrices(prep)
+  if (is.null(prep$eig_products)) prep <- cache_problem_matrices_reference(prep)
   edge_k <- prep$edge_table$k
   edge_l <- prep$edge_table$l
   edge_keys <- prep$edge_table$key
@@ -448,7 +457,7 @@ fit_oracle_consensus_admm <- function(
   eps_primal <- NA_real_
   eps_dual <- NA_real_
 
-  if (is.null(prep$eig_products)) prep <- cache_problem_matrices(prep)
+  if (is.null(prep$eig_products)) prep <- cache_problem_matrices_reference(prep)
   edge_k <- prep$edge_table$k
   edge_l <- prep$edge_table$l
   edge_keys <- prep$edge_table$key

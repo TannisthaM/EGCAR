@@ -1,4 +1,5 @@
 #include "native_core.hpp"
+#include "compressed_test_state.hpp"
 #include <iostream>
 #include <iomanip>
 using namespace egcar_fast;
@@ -113,7 +114,7 @@ int main() {
     s.C.push_back(A);s.Z.push_back(A);s.H.push_back(A);s.Gk.push_back(A);s.Gl.push_back(A);s.Vk.push_back(A);s.Vl.push_back(A);
    }
    Control c;c.penalty=lambda;c.mu=0.7;c.abs_tol=1e-7;c.rel_tol=1e-6;c.balance_ratio=10;c.scale_factor=2;c.max_iter=100;c.check_every=5;c.adapt_every=10;c.adaptive=adaptive;c.history=group;
-   Result a=solve(p,s,c,group),b=dense(p,d,s,c,group);
+   Result a=expanded_group_result(solve(p,s,c,group),p,group),b=dense(p,d,s,c,group);
    for(unsigned e=0;e<p.edges.size();++e) {
     double err=arma::norm(a.state.C[e]-b.state.C[e],"inf");
     maximum=std::max(maximum,err);

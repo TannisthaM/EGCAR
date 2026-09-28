@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "scope": "Independent NumPy algebra only; not R execution or end-to-end benchmarking",
+  "cases": {
+    "scores": 48,
+    "roots": 32,
+    "updates": 12
+  },
+  "max_errors": {
+    "score_relative": 2.697929429257659e-09,
+    "covariance_relative": 1.5398206180595256e-15,
+    "half_relative": 1.1091128016005314e-13,
+    "inv_half_relative": 1.260459041214323e-11,
+    "c_update_relative": 5.638738218070857e-15
+  }
+}

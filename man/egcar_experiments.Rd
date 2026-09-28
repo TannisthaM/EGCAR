@@ -25,8 +25,17 @@ run_egcar_experiments(output_dir = "egcar_package_outputs",
 }
 \details{Exactly four EGCAR curves are produced: L11-CV, L11-rate, L21-CV,
 and L21-rate. Both CV grids default to \code{10^seq(-5, 4)} and reject zero.
+The L21 rate constant \code{rate_c_g} defaults to the independent pilot-calibrated
+coefficient used by \code{egcar_rate(penalty="l21")}. Explicit overrides remain
+effective. Invalid requested-rank loadings are recorded as
+\code{status="invalid_loading"}, even when ADMM converged. Results include
+\code{loading_valid}, \code{selected_rows} (for operator estimates),
+\code{zero_solution}, \code{rate_zero_bound} and \code{rate_zero_certified}.
+The last two fields apply to L21-rate. Unavailable subspace errors remain NA.
 SGCA, RGCCA, SGCCA, MultiCCA, Oracle1-population, and Oracle2-support are retained.
-SGCA initialization is bundled. RGCCA and PMA are needed for the full comparison;
+SGCA initialization is bundled. The configuration field \code{sgca_time_limit}
+sets one elapsed-time budget in seconds for each SGCA CV-and-refit run; its
+default is 21600 (six hours). The SGCA iteration caps default to Inf. RGCCA and PMA are needed for the full comparison;
 ggplot2 is needed for plots. Future and future.apply enable parallel CV.
 The population oracle retains the original zero-penalty consensus algorithm;
 neither its data nor its coefficients depend on sample size. The support

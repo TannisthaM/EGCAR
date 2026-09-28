@@ -1,0 +1,45 @@
+compressed-operator-0212: .....................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+config-compat-025: ....
+installed-examples: ............
+l21-rate-0214: ........................................Output: /tmp/RtmpILpFCf/egcar-rate-5fb40290
+CV workers per method: 1 of 1 requested; folds=2; repetitions=1
+
+rep=1  r=1  n=18
+  selected L11 coefficient: rho_e=0.01; status=not_converged
+  selected L21 coefficient: lambda_g=0.01; status=not_converged
+
+Completed. Main output file:
+/tmp/RtmpILpFCf/egcar-rate-5fb40290/egcar_simulation.rds 
+.....
+matrix-dim-hardening-024: .....
+memory-023: .............
+namespace: .....
+native-interface-022: ...............
+optional-comparisons: S
+performance-0211: ...........The reference l11 solver does not record objective histories.
+................The reference l11 solver does not record objective histories.
+...............The reference l11 solver does not record objective histories.
+......................................................................................
+regression: .Core package checks passed.
+.
+revision-020: ............Output: /tmp/RtmpILpFCf/egcar-test-55d4f23ff
+CV workers per method: 1 of 1 requested; folds=2; repetitions=1
+
+rep=1  r=1  n=18
+  selected L11 coefficient: rho_e=0.01; status=not_converged
+  selected L21 coefficient: lambda_g=0.01; status=not_converged
+
+Completed. Main output file:
+/tmp/RtmpILpFCf/egcar-test-55d4f23ff/egcar_simulation.rds 
+.....
+sgca-budget-0213: ................................................
+speed-021: .................................................................
+
+══ Skipped ═════════════════════════════════════════════════════════════════════
+1. optional comparison and parallel regression checks pass ('test-optional-comparisons.R:2:3') - Reason: Set EGCAR_TEST_OPTIONAL=true to run optional comparisons.
+
+══ DONE ════════════════════════════════════════════════════════════════════════
+Your tests are neat!
+ failed   error warning skipped  passed 
+      0       0       0       1     860 
+VERIFIED_TEST_SUITE_COMPLETE

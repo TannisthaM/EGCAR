@@ -1,0 +1,172 @@
+{
+  "base_version": "0.2.10",
+  "new_version": "0.2.11",
+  "r_runtime_available": false,
+  "changes": [
+    {
+      "file": "DESCRIPTION",
+      "status": "modified",
+      "sha256": "24a0bedb7489c0df607dab07aa1c31f7aea15ac79f035b08e2833c758860716c"
+    },
+    {
+      "file": "NEWS.md",
+      "status": "modified",
+      "sha256": "af78fc96cbcfd0666db7b239193f51cc720b500cb5002d6e11a34a999f46a9e5"
+    },
+    {
+      "file": "OPTIMIZATION_REPORT.md",
+      "status": "added",
+      "sha256": "c266ffa04b519279666db111ef65ef2b50efe69f61e05682b26cf1aa18613326"
+    },
+    {
+      "file": "R/controls.R",
+      "status": "modified",
+      "sha256": "aaa2154d879a74b8cfbce6e080e48398261591c923da54c2df0e3c6a166264ed"
+    },
+    {
+      "file": "R/egcar.r",
+      "status": "modified",
+      "sha256": "36b28b5a2251336fec1f1db5284b25e19d2673ad831638c50fb95275f00e06a4"
+    },
+    {
+      "file": "R/experiment_engine.R",
+      "status": "modified",
+      "sha256": "795a2b64288ba7e0827c87b35f4728381e6c71843a9242bbddf4aaafece7d36e"
+    },
+    {
+      "file": "R/globals.R",
+      "status": "modified",
+      "sha256": "9bb2312834b43c37db21ae092da85b89198b0270b37b9689849b6a1d67f8bc0a"
+    },
+    {
+      "file": "R/group_reduced_rank_regression.R",
+      "status": "modified",
+      "sha256": "10e62673c8de6e1cafc71ce42aa02b8facea0aefb19d41719d6cd1265771a393"
+    },
+    {
+      "file": "R/helpers.r",
+      "status": "modified",
+      "sha256": "accf47654988a4cf6da67536fa9393c44116cd9452d95ef9ea56efcac3cf7524"
+    },
+    {
+      "file": "R/metrics.R",
+      "status": "modified",
+      "sha256": "020c23be981950a14aa29697817bdf57688d669867cdfe529156ddf58900c742"
+    },
+    {
+      "file": "R/oracles.R",
+      "status": "modified",
+      "sha256": "fa97620bbce9c84a72677bdbd45e544d86235bc95de9fb5211876b01fb1ed52d"
+    },
+    {
+      "file": "R/prepare.R",
+      "status": "modified",
+      "sha256": "658946bfb2aa3372dc42dd6e15002d64d7c4a02842b1e00036342cde4ee78cfe"
+    },
+    {
+      "file": "R/reduced_rank_regression.R",
+      "status": "modified",
+      "sha256": "1ea72af957e5f934cd2799520226a79bd4bc13276abfcacd45ddba26582e1476"
+    },
+    {
+      "file": "R/reference.R",
+      "status": "modified",
+      "sha256": "538feaa9a1376fcdbd948008ecb1dbc1690e95abfaf589c24210d1095cb5507a"
+    },
+    {
+      "file": "README.md",
+      "status": "modified",
+      "sha256": "a0f8cf00af65fc2e8e3bf9bb5dd52c1d4624c5d0e77f3fe2fafcc151da5dddf9"
+    },
+    {
+      "file": "inst/doc/REPOSITORY_LAYOUT.md",
+      "status": "modified",
+      "sha256": "c9bd157199d3d28ebf1db15936a9e16db7f06d453cdebb8877840ed62778c591"
+    },
+    {
+      "file": "inst/examples/08_performance_check.R",
+      "status": "added",
+      "sha256": "7d4f593df9d699db95a113bcb706264b73ee70114b4e5c7d7df99eef5b525c6f"
+    },
+    {
+      "file": "inst/standalone/run_EGCAR_local.R",
+      "status": "modified",
+      "sha256": "c1e2d3f4253bd6623078e36b0099e4d983a06f8f41dea1162af40ae85b5ed67c"
+    },
+    {
+      "file": "inst/validation/benchmark_0211_worker.R",
+      "status": "added",
+      "sha256": "308b3d2a88b4c07a453d73c5514bf035d45b2209511d478a9c7c29a02e11fa64"
+    },
+    {
+      "file": "inst/validation/core.R",
+      "status": "modified",
+      "sha256": "a73b4ca0dbc60771db8144175f4ba837c610972f7bba9543280b0fca319974b1"
+    },
+    {
+      "file": "inst/validation/performance_0211_algebra_results.json",
+      "status": "added",
+      "sha256": "8dc15b47e335b3fded5b7060649067d73b431399f3f56d93fb31548ad74b5029"
+    },
+    {
+      "file": "inst/validation/performance_0211_native_kernel_results.json",
+      "status": "added",
+      "sha256": "a1fc71e7cf8eb70705d7b4fdf5636bad89a264de7518fcf03f743261fd63bb50"
+    },
+    {
+      "file": "inst/validation/performance_0211_static_results.json",
+      "status": "added",
+      "sha256": "e46fa3f5cb1f2af7c27fa75f3c05c4685a46f248df0991bd7ab045d3bcfd33e4"
+    },
+    {
+      "file": "man/egcar_control.Rd",
+      "status": "modified",
+      "sha256": "d8b61dd5edda75c66a3c458c02902d240fd2864a893cc804b6df834af1ef82ed"
+    },
+    {
+      "file": "man/egcar_prepare.Rd",
+      "status": "modified",
+      "sha256": "0d36083292d8b64b9f6cf4cc14ddd04d6d0080a9445462752ea753369cd7bea4"
+    },
+    {
+      "file": "src/egcar_native.cpp",
+      "status": "modified",
+      "sha256": "f61bd4572af3dff9a5bee02bc96de4d1de4593d895ebe2a1961679dcbf5966d0"
+    },
+    {
+      "file": "tests/testthat/test-performance-0211.R",
+      "status": "added",
+      "sha256": "593683d9142766bb4becf9d674cf600f7c08a92c4c34ace91ae70c8bd9aec828"
+    },
+    {
+      "file": "tools/benchmark_0211.R",
+      "status": "added",
+      "sha256": "cfb3d37f622877c5ed1d3cca85e4b71dfa54e1ccf74c24d5f8c55d66dbae39f4"
+    },
+    {
+      "file": "tools/check_algebra_0211.py",
+      "status": "added",
+      "sha256": "40fb890baaf42841e44f73dc8385947348872bea3b82812a82bf89aa541f441a"
+    },
+    {
+      "file": "tools/check_group_kernels_0211.py",
+      "status": "added",
+      "sha256": "c254ca2224834e273dbaaafe72c57454721ea9bd652d20aa87e3565fcf90d29f"
+    },
+    {
+      "file": "tools/native/legacy_group_kernels_0210.hpp",
+      "status": "added",
+      "sha256": "4733080fd47043186018c197d0064880428155411959e3528b2738c4d4e37762"
+    },
+    {
+      "file": "tools/native/native_core.hpp",
+      "status": "modified",
+      "sha256": "ba06643471a9c696681d3bfba15977dd1879261018be3628d2ef57840023297a"
+    },
+    {
+      "file": "tools/verify_EGCAR_rewrites.R",
+      "status": "modified",
+      "sha256": "79021401ebd64ec681259fdc80b74d62043f1ee31e7df763054cbd1a0215e07b"
+    }
+  ]
+}

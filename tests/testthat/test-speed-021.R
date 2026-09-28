@@ -16,7 +16,7 @@ test_that("compiled EGCAR preserves full-space reference updates and inputs", {
       a <- egcar_fit(x, rank = 1L, penalty = penalty, lambda = 0.01, control = ctl)
       ctl$backend <- "R"
       b <- egcar_fit(x, rank = 1L, penalty = penalty, lambda = 0.01, control = ctl)
-      fields <- if (penalty == "l11") c("C", "Z", "H") else c("C", "G", "V")
+      fields <- if (penalty == "l11") c("C", "Z", "H") else c("C", "Hk", "Hl", "a")
       for (nm in fields) {
         aa <- unlist(a$solver[[nm]], use.names = FALSE)
         bb <- unlist(b$solver[[nm]], use.names = FALSE)

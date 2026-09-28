@@ -41,6 +41,10 @@ struct Control {
 };
 struct State {
   std::vector<mat> C, Z, H, Gk, Gl, Vk, Vl;
+  // Group state: Hk/Hl = G + V at each endpoint; a is one multiplier per row.
+  // Legacy G/V fields are used only to accept arbitrary old warm starts.
+  std::vector<mat> Hk, Hl;
+  std::vector<vec> a;
 };
 struct Result {
   State state;
@@ -93,7 +97,7 @@ inline void threshold_entries(const mat& W, double t, mat& Z) {
   }
 }
 // Scratch matrices are reused over ADMM iterations. They never alias R inputs.
-struct Workspace { mat target, projected, project_tmp, lift_tmp, correction; };
+struct Workspace { mat target, projected, project_tmp, lift_tmp, correction, coefficient; };
 // BLAS remains preferable for many large products. The small-product branch
 // avoids BLAS dispatch / operand-copy overhead using column-major Eigen maps.
 // No map or native pointer survives the call, and output never aliases inputs.
@@ -167,8 +171,75 @@ inline void entry_step(const mat& C, mat& Z, mat& H, double threshold,
   }
   if(Check) {rp2+=rp;rd2+=rd;nc2+=nc;nz2+=nz;ny2+=ny;}
 }
+// Accumulate incident row norms without keeping Wk=C+Vk and Wl=C+Vl for
+// every edge. Only the small per-view norm vectors survive this traversal.
+inline void group_norm_add(const mat& C, const mat& Vk, const mat& Vl,
+                           vec& nk, vec& nl) {
+  for(arma::uword j=0;j<C.n_cols;++j) {
+    double sum_l=0;
+    for(arma::uword i=0;i<C.n_rows;++i) {
+      const arma::uword h=i+j*C.n_rows;
+      const double wk=C[h]+Vk[h], wl=C[h]+Vl[h];
+      nk[i]+=wk*wk; sum_l+=wl*wl;
+    }
+    nl[j]+=sum_l;
+  }
+}
+inline void compressed_group_target(const mat& Hk, const mat& Hl,
+                                    const vec& ak, const vec& al, mat& target) {
+  target.set_size(Hk.n_rows,Hk.n_cols);
+  for(arma::uword j=0;j<Hk.n_cols;++j)
+    for(arma::uword i=0;i<Hk.n_rows;++i) {
+      const arma::uword h=i+j*Hk.n_rows;
+      target[h]=0.5*((2.0*ak[i]-1.0)*Hk[h]+(2.0*al[j]-1.0)*Hl[h]);
+    }
+}
+inline void compressed_group_norm_add(const mat& C, const mat& Hk, const mat& Hl,
+                                      const vec& ak, const vec& al, vec& nk, vec& nl) {
+  for(arma::uword j=0;j<C.n_cols;++j) {
+    double sum_l=0;
+    for(arma::uword i=0;i<C.n_rows;++i) {
+      const arma::uword h=i+j*C.n_rows;
+      const double wk=C[h]+(1.0-ak[i])*Hk[h], wl=C[h]+(1.0-al[j])*Hl[h];
+      nk[i]+=wk*wk; sum_l+=wl*wl;
+    }
+    nl[j]+=sum_l;
+  }
+}
 template<bool Check>
-inline void group_step(const mat& C, const mat& Wk, const mat& Wl,
+inline void compressed_group_step(const mat& C, const vec& ak, const vec& al,
+                                  const vec& mk, const vec& ml, mat& Hk, mat& Hl,
+                                  double& rp2,double& rd2,double& nc2,double& nz2,double& ny2) {
+  double rp=0,rd=0,nc=0,nz=0,ny=0;
+  for(arma::uword j=0;j<C.n_cols;++j)
+    for(arma::uword i=0;i<C.n_rows;++i) {
+      const arma::uword h=i+j*C.n_rows;
+      const double hk=Hk[h], hl=Hl[h], c=C[h];
+      const double wk=c+(1.0-ak[i])*hk, wl=c+(1.0-al[j])*hl;
+      if(Check) {
+        const double gk=mk[i]*wk, gl=ml[j]*wl;
+        const double drk=c-gk, drl=c-gl, ds=(gk-ak[i]*hk)+(gl-al[j]*hl);
+        const double y=(1.0-mk[i])*wk+(1.0-ml[j])*wl;
+        rp+=drk*drk+drl*drl; rd+=ds*ds; nc+=2.0*c*c;
+        nz+=gk*gk+gl*gl; ny+=y*y;
+      }
+      Hk[h]=wk; Hl[h]=wl;
+    }
+  if(Check) {rp2+=rp;rd2+=rd;nc2+=nc;nz2+=nz;ny2+=ny;}
+}
+// Changing mu rescales V only. Reparameterize H and a so G is unchanged.
+inline void compressed_group_rescale(const Problem& p, State& s, double factor) {
+  std::vector<vec> scale; scale.reserve(s.a.size());
+  for(const vec& a:s.a) scale.push_back(a+(1.0-a)/factor);
+  for(unsigned e=0;e<p.edges.size();++e) {
+    const Edge& z=p.edges[e];
+    s.Hk[e].each_col()%=scale[z.k];
+    s.Hl[e].each_row()%=scale[z.l].t();
+  }
+  for(unsigned k=0;k<s.a.size();++k) s.a[k]/=scale[k];
+}
+template<bool Check>
+inline void group_step(const mat& C,
                        const vec& mk, const vec& ml, mat& Gk, mat& Gl,
                        mat& Vk, mat& Vl, double& rp2,double& rd2,
                        double& nc2,double& nz2,double& ny2) {
@@ -177,8 +248,9 @@ inline void group_step(const mat& C, const mat& Wk, const mat& Wl,
     const double scale_l=ml[j];
     for(arma::uword i=0;i<C.n_rows;++i) {
       const arma::uword h=i+j*C.n_rows;
-      const double gk=Wk[h]*mk[i], gl=Wl[h]*scale_l;
-      const double vk=Wk[h]-gk, vl=Wl[h]-gl;
+      const double wk=C[h]+Vk[h], wl=C[h]+Vl[h];
+      const double gk=wk*mk[i], gl=wl*scale_l;
+      const double vk=wk-gk, vl=wl-gl;
       if(Check) {
         const double c=C[h], drk=c-gk, drl=c-gl;
         const double ds=((gk-Gk[h])+gl)-Gl[h], y=vk+vl;
@@ -197,9 +269,12 @@ inline Result solve(const Problem& p, State s, const Control& ctl, bool group,
       !(ctl.mu>0) || !std::isfinite(ctl.mu) || ctl.penalty<0 || !std::isfinite(ctl.penalty))
     throw std::invalid_argument("Invalid EGCAR solver controls.");
   const unsigned E=p.edges.size();
+  bool compressed=group && s.a.size()==p.sizes.size();
   Result out; out.mu=ctl.mu;
   if(ctl.history) out.history.reserve(ctl.max_iter/ctl.check_every+2);
-  std::vector<mat> den(E), Ct(E), Wk(E), Wl(E);
+  std::vector<mat> den(E);
+  // Only objective histories need all transformed coefficients at once.
+  std::vector<mat> Ct(group && ctl.history ? E : 0);
   Workspace work;  // one grow-to-fit workspace shared by sequential edge updates
   std::vector<vec> normsq;
   if(group) { normsq.reserve(p.sizes.size());
@@ -217,7 +292,7 @@ inline Result solve(const Problem& p, State s, const Control& ctl, bool group,
     if(!group) {
       for(unsigned e=0;e<E;++e) {
         work.target=s.Z[e]-s.H[e];
-        c_update_into(p,e,shift,den[e],Ct[e],s.C[e],work);
+        c_update_into(p,e,shift,den[e],work.coefficient,s.C[e],work);
         if(check) entry_step<true>(s.C[e],s.Z[e],s.H[e],ctl.penalty/out.mu,
                                   rp2,rd2,nc2,nz2,ny2);
         else entry_step<false>(s.C[e],s.Z[e],s.H[e],ctl.penalty/out.mu,
@@ -232,11 +307,13 @@ inline Result solve(const Problem& p, State s, const Control& ctl, bool group,
       for(vec& v:normsq) v.zeros();
       for(unsigned e=0;e<E;++e) {
         const Edge& z=p.edges[e];
-        work.target=0.5*(s.Gk[e]-s.Vk[e]+s.Gl[e]-s.Vl[e]);
-        c_update_into(p,e,shift,den[e],Ct[e],s.C[e],work);
-        Wk[e]=s.C[e]+s.Vk[e]; Wl[e]=s.C[e]+s.Vl[e];
-        normsq[z.k]+=arma::sum(arma::square(Wk[e]),1);
-        normsq[z.l]+=arma::sum(arma::square(Wl[e]),0).t();
+        if(compressed) compressed_group_target(s.Hk[e],s.Hl[e],s.a[z.k],s.a[z.l],work.target);
+        else work.target=0.5*(s.Gk[e]-s.Vk[e]+s.Gl[e]-s.Vl[e]);
+        mat& transformed=ctl.history?Ct[e]:work.coefficient;
+        c_update_into(p,e,shift,den[e],transformed,s.C[e],work);
+        if(compressed) compressed_group_norm_add(s.C[e],s.Hk[e],s.Hl[e],
+          s.a[z.k],s.a[z.l],normsq[z.k],normsq[z.l]);
+        else group_norm_add(s.C[e],s.Vk[e],s.Vl[e],normsq[z.k],normsq[z.l]);
       }
       const double threshold=ctl.penalty/out.mu;
       for(vec& x:normsq) for(arma::uword i=0;i<x.n_elem;++i) {
@@ -246,11 +323,25 @@ inline Result solve(const Problem& p, State s, const Control& ctl, bool group,
       }
       for(unsigned e=0;e<E;++e) {
         const Edge& z=p.edges[e];
-        if(check) group_step<true>(s.C[e],Wk[e],Wl[e],normsq[z.k],normsq[z.l],
+        if(compressed) {
+          if(check) compressed_group_step<true>(s.C[e],s.a[z.k],s.a[z.l],normsq[z.k],normsq[z.l],
+            s.Hk[e],s.Hl[e],rp2,rd2,nc2,nz2,ny2);
+          else compressed_group_step<false>(s.C[e],s.a[z.k],s.a[z.l],normsq[z.k],normsq[z.l],
+            s.Hk[e],s.Hl[e],rp2,rd2,nc2,nz2,ny2);
+        } else if(check) group_step<true>(s.C[e],normsq[z.k],normsq[z.l],
           s.Gk[e],s.Gl[e],s.Vk[e],s.Vl[e],rp2,rd2,nc2,nz2,ny2);
-        else group_step<false>(s.C[e],Wk[e],Wl[e],normsq[z.k],normsq[z.l],
+        else group_step<false>(s.C[e],normsq[z.k],normsq[z.l],
           s.Gk[e],s.Gl[e],s.Vk[e],s.Vl[e],rp2,rd2,nc2,nz2,ny2);
       }
+      if(!compressed) {
+        // After one ordinary proximal update even arbitrary legacy state has
+        // the required rowwise proportionality. Reuse its storage in place.
+        s.Hk=std::move(s.Vk); s.Hl=std::move(s.Vl);
+        for(unsigned e=0;e<E;++e) {s.Hk[e]+=s.Gk[e];s.Hl[e]+=s.Gl[e];}
+        std::vector<mat>().swap(s.Gk); std::vector<mat>().swap(s.Gl);
+        compressed=true;
+      }
+      s.a=normsq;
       if(check) {
         out.primal=std::sqrt(rp2); out.dual=out.mu*std::sqrt(rd2);
         out.eps_primal=std::sqrt(2.0*p.q)*ctl.abs_tol+ctl.rel_tol*std::max(std::sqrt(nc2),std::sqrt(nz2));
@@ -278,7 +369,7 @@ inline Result solve(const Problem& p, State s, const Control& ctl, bool group,
         else if(out.dual>ctl.balance_ratio*std::max(out.primal,std::numeric_limits<double>::epsilon())) factor=1.0/ctl.scale_factor;
         if(factor!=1) {
           out.mu*=factor;
-          if(group) for(unsigned e=0;e<E;++e) {s.Vk[e]/=factor; s.Vl[e]/=factor;}
+          if(group) compressed_group_rescale(p,s,factor);
           else for(unsigned e=0;e<E;++e) s.H[e]/=factor;
         }
       }
@@ -384,8 +475,20 @@ Rcpp::List egcar_native_solve(Rcpp::List context, Rcpp::List state,
   ctl.history=Rcpp::as<bool>(controls["history"]);
   State s; s.C=egcar_mat_list(state["C"]);
   if(group) {
-    s.Gk=egcar_mat_list(state["Gk"]); s.Gl=egcar_mat_list(state["Gl"]);
-    s.Vk=egcar_mat_list(state["Vk"]); s.Vl=egcar_mat_list(state["Vl"]);
+    if(state.containsElementNamed("a")) {
+      s.Hk=egcar_mat_list(state["Hk"]); s.Hl=egcar_mat_list(state["Hl"]);
+      Rcpp::List a=state["a"];
+      if(a.size()!=static_cast<int>(p.sizes.size())) Rcpp::stop("Invalid group multiplier list.");
+      for(unsigned k=0;k<p.sizes.size();++k) {
+        vec v=Rcpp::as<vec>(a[k]);
+        if(v.n_elem!=p.sizes[k] || !v.is_finite() || arma::any(v<0) || arma::any(v>1))
+          Rcpp::stop("Invalid group row multipliers.");
+        s.a.push_back(std::move(v));
+      }
+    } else {
+      s.Gk=egcar_mat_list(state["Gk"]); s.Gl=egcar_mat_list(state["Gl"]);
+      s.Vk=egcar_mat_list(state["Vk"]); s.Vl=egcar_mat_list(state["Vl"]);
+    }
   } else { s.Z=egcar_mat_list(state["Z"]); s.H=egcar_mat_list(state["H"]); }
   auto check_state = [&p](const std::vector<mat>& values) {
     if(values.size()!=p.edges.size()) Rcpp::stop("Invalid native warm-start list length.");
@@ -395,17 +498,20 @@ Rcpp::List egcar_native_solve(Rcpp::List context, Rcpp::List state,
         Rcpp::stop("Invalid native warm-start matrix.");
   };
   check_state(s.C);
-  if(group) {check_state(s.Gk);check_state(s.Gl);check_state(s.Vk);check_state(s.Vl);}
+  if(group && !s.a.empty()) {check_state(s.Hk);check_state(s.Hl);}
+  else if(group) {check_state(s.Gk);check_state(s.Gl);check_state(s.Vk);check_state(s.Vl);}
   else {check_state(s.Z);check_state(s.H);}
   Result fit=solve(p,std::move(s),ctl,group,egcar_interrupt,verbose?egcar_progress:nullptr);
   Rcpp::List outstate;
   if (group) {
+    Rcpp::List a(fit.state.a.size());
+    for(unsigned k=0;k<fit.state.a.size();++k)
+      a[k]=Rcpp::NumericVector(fit.state.a[k].begin(),fit.state.a[k].end());
     outstate = Rcpp::List::create(
       Rcpp::_["C"] = egcar_matrix_list_to_R(fit.state.C),
-      Rcpp::_["Gk"] = egcar_matrix_list_to_R(fit.state.Gk),
-      Rcpp::_["Gl"] = egcar_matrix_list_to_R(fit.state.Gl),
-      Rcpp::_["Vk"] = egcar_matrix_list_to_R(fit.state.Vk),
-      Rcpp::_["Vl"] = egcar_matrix_list_to_R(fit.state.Vl));
+      Rcpp::_["Hk"] = egcar_matrix_list_to_R(fit.state.Hk),
+      Rcpp::_["Hl"] = egcar_matrix_list_to_R(fit.state.Hl),
+      Rcpp::_["a"] = a);
   } else {
     outstate = Rcpp::List::create(
       Rcpp::_["C"] = egcar_matrix_list_to_R(fit.state.C),
@@ -419,5 +525,40 @@ Rcpp::List egcar_native_solve(Rcpp::List context, Rcpp::List state,
       Rcpp::_ ["iterations"]=fit.iterations,Rcpp::_ ["primal"]=fit.primal,Rcpp::_ ["dual"]=fit.dual,
       Rcpp::_ ["eps_primal"]=fit.eps_primal,Rcpp::_ ["eps_dual"]=fit.eps_dual,
       Rcpp::_ ["mu"]=fit.mu,Rcpp::_ ["history"]=hist,
-      Rcpp::_ ["matrix_api"]=2);
+      Rcpp::_ ["matrix_api"]=3);
+}
+
+// Apply the selected symmetric operator directly to its unordered edge blocks.
+// Both endpoint contributions use the same coefficient, preserving symmetry.
+// No selected-edge copy, assembled operator, or R-owned input mutation.
+// [[Rcpp::export]]
+Rcpp::NumericVector egcar_native_block_product(Rcpp::List C,
+    Rcpp::IntegerVector edge_k, Rcpp::IntegerVector edge_l,
+    Rcpp::List local, Rcpp::List position, Rcpp::NumericVector v) {
+  if(C.size()!=edge_k.size() || C.size()!=edge_l.size() || local.size()!=position.size())
+    Rcpp::stop("Invalid block-operator layout.");
+  Rcpp::NumericVector out(v.size());
+  for(int e=0;e<C.size();++e) {
+    Rcpp::checkUserInterrupt();
+    const int k=edge_k[e]-1, l=edge_l[e]-1;
+    if(k<0 || l<=k || l>=local.size()) Rcpp::stop("Invalid block-operator edge.");
+    Rcpp::NumericMatrix A=Rcpp::as<Rcpp::NumericMatrix>(C[e]);
+    Rcpp::IntegerVector sk=local[k], sl=local[l], pk=position[k], pl=position[l];
+    if(sk.size()!=pk.size() || sl.size()!=pl.size()) Rcpp::stop("Invalid selected positions.");
+    for(int i=0;i<sk.size();++i)
+      if(sk[i]<1 || sk[i]>A.nrow() || pk[i]<1 || pk[i]>v.size())
+        Rcpp::stop("Invalid selected row index.");
+    for(int j=0;j<sl.size();++j) {
+      if(sl[j]<1 || sl[j]>A.ncol() || pl[j]<1 || pl[j]>v.size())
+        Rcpp::stop("Invalid selected column index.");
+      const double vl=v[pl[j]-1];
+      double sum_l=0;
+      for(int i=0;i<sk.size();++i) {
+        const double c=A(sk[i]-1,sl[j]-1);
+        out[pk[i]-1]+=c*vl; sum_l+=c*v[pk[i]-1];
+      }
+      out[pl[j]-1]+=sum_l;
+    }
+  }
+  return out;
 }

@@ -1,0 +1,1174 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+%
+\documentclass[
+  11pt,
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\newenvironment{Shaded}{}{}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{1.00,0.00,0.00}{\textbf{#1}}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.49,0.56,0.16}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\BuiltInTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{#1}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.53,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.56,0.13,0.00}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.73,0.13,0.13}{\textit{#1}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{1.00,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.02,0.16,0.49}{#1}}
+\newcommand{\ImportTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{\textbf{#1}}}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.40,0.40,0.40}{#1}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.74,0.48,0.00}{#1}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.73,0.40,0.53}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.10,0.09,0.49}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{5}
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={EGCAR: exact computational reductions, memory use, and time-limited SGCA},
+  colorlinks=true,
+  linkcolor={Maroon},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={Blue},
+  pdfcreator={LaTeX via pandoc}}
+
+\title{EGCAR: exact computational reductions, memory use, and
+time-limited SGCA}
+\author{}
+\date{24 September 2026}
+
+\begin{document}
+\maketitle
+
+\hypertarget{scope-and-what-was-actually-run}{%
+\section{Scope and what was actually
+run}\label{scope-and-what-was-actually-run}}
+
+This note explains the computational implementation in \textbf{egcar
+0.2.12}, and the SGCA elapsed-time change in \textbf{0.2.13}. It
+distinguishes algebraic identities used in the code from proposed
+improvements to comparison methods. The EGCAR entrywise and group
+penalties remain separate estimators. The covariance divisor, loading
+ridge, numerical floors, support thresholds, ADMM stopping rules, and
+common cross-validation score were preserved.
+
+\textbf{The earlier performance report used actual R runs of a dedicated
+synthetic benchmark. It did not run the full all-methods example or the
+full SLURM/CV sweep.} The script was
+\texttt{inst/validation/benchmark\_0212\_worker.R}, launched by
+\texttt{tools/benchmark\_0212.R}. Each timing is the median of three
+runs. The ADMM iterations were capped deliberately at the same counts in
+both versions, with zero stopping tolerances; these are fixed-work
+comparisons, not time-to-convergence measurements. Package preparation
+was excluded from the fit timer, while loading-factor construction was
+included. The optional third-party comparison suite was skipped in that
+validation.
+
+The full mathematical specification remains the supplied
+\texttt{gca\_scalability.pdf}. In that PDF, Algorithm 2 forms the
+restricted covariance at \textbf{line 14} and requests eigenpairs at
+\textbf{line 15}. Algorithm 1 requests eigenpairs at line 6.
+
+\hypertarget{representation-and-preparation}{%
+\section{Representation and
+preparation}\label{representation-and-preparation}}
+
+Let the centered views be \(X_k\in\mathbb R^{n\times p_k}\), let
+\(p=\sum_kp_k\), and write
+
+\[
+\widehat\Sigma_{k\ell}=\frac{X_k^\top X_\ell}{n},\qquad
+q=\sum_{k<\ell}p_kp_\ell.
+\]
+
+Only one coefficient block \(C_{k\ell}\in\mathbb R^{p_k\times p_\ell}\)
+is stored for each unordered pair. The opposite block is represented by
+its transpose and \(C_{kk}=0\). This avoids storing the complete
+symmetric \(p\times p\) coefficient matrix. The edge blocks themselves
+are dense arrays during fitting: coefficient sparsity does not
+automatically imply a sparse numerical representation.
+
+The fitted loss is
+
+\[
+\ell(C)=\sum_{k<\ell}\left\{
+\frac12\operatorname{tr}(C_{k\ell}^\top\widehat\Sigma_{kk}
+ C_{k\ell}\widehat\Sigma_{\ell\ell})
+-\langle\widehat\Sigma_{k\ell},C_{k\ell}\rangle\right\}.
+\]
+
+The two objectives are \(\ell(C)+\rho\sum_{k<\ell}\|C_{k\ell}\|_1\) and
+\(\ell(C)+\lambda_g\sum_k\|M_k(C)\|_{2,1}\), respectively, with the
+paper's concatenation
+
+\[
+M_k(C)=[C_{k1},\ldots,C_{k,k-1},C_{k,k+1},\ldots,C_{kK}].
+\]
+
+The optimized implementation uses this concatenation mathematically but
+does not assemble it during ordinary group iterations.
+
+\hypertarget{reuse-covariance-factorizations}{%
+\subsection{Reuse covariance
+factorizations}\label{reuse-covariance-factorizations}}
+
+For each view, preparation computes a spectral representation
+
+\[
+\widehat\Sigma_{kk}=Q_kD_kQ_k^\top,
+\qquad D_k=\operatorname{diag}(d_{k1},\ldots,d_{ka_k}).
+\]
+
+When \(n<p_k\), the code obtains this from a thin SVD of \(X_k\), with
+\(a_k\leq\min(n,p_k)\), rather than computing an otherwise unused full
+covariance eigendecomposition. It retains the positive covariance range
+under the existing numerical convention; it does \textbf{not} truncate
+that range to the requested loading rank \(r\). In exact arithmetic,
+centering further bounds the rank by \(n-1\).
+
+The bases, pairwise products \(d_{ki}d_{\ell j}\), projected
+cross-covariances, and multiplication-order decisions are prepared once.
+They are reused over iterations and over a warm-start penalty path
+within the same training fold. Fold-specific matrices are never shared
+across different training splits as though they were identical.
+
+The current prepared object still contains the dense within-view and
+cross-view covariance blocks. Thin spectral preparation saves
+eigensystem work and storage; it does not make all EGCAR storage linear
+in \(p\).
+
+\hypertarget{relation-to-ccar3}{%
+\subsection{Relation to ccar3}\label{relation-to-ccar3}}
+
+The ccar3 manual and \texttt{R/ecca.r} supplied useful computational
+patterns: thin data SVDs, cached spectral denominators,
+reduced-coordinate updates, choosing matrix multiplication order, and
+warm starts along a penalty path. These patterns informed the
+implementation audit. EGCAR's compressed group-consensus state and final
+symmetric operator callback are derived below for its own objective. We
+did not substitute ccar3's two-view estimator, spectral cutoff, or
+full-decomposition fallback for EGCAR's statistical rules. See sources
+S1 and S2.
+
+\hypertarget{the-coefficient-solve-an-exact-reduced-calculation}{%
+\section{The coefficient solve: an exact reduced
+calculation}\label{the-coefficient-solve-an-exact-reduced-calculation}}
+
+Both EGCAR families repeatedly solve an equation of the form
+
+\[
+\widehat\Sigma_{kk}C_{k\ell}\widehat\Sigma_{\ell\ell}
++\alpha C_{k\ell}
+=\widehat\Sigma_{k\ell}+\alpha T_{k\ell}.
+\tag{1}
+\]
+
+For L11, \(\alpha=\mu\) and \(T=Z-V\), where \(V\) denotes its scaled
+dual variable. The source names that L11 dual array \texttt{H}. For L21,
+\(\alpha=2\mu_g\) and
+
+\[
+T_{k\ell}=\frac12\left\{
+E_{k\ell}^{(k)}(G_k-V_k)+E_{k\ell}^{(\ell)}(G_\ell-V_\ell)
+\right\}.
+\tag{2}
+\]
+
+The factor two must remain: each edge participates in two
+group-consensus constraints.
+
+Define
+
+\[
+\widetilde T=Q_k^\top T_{k\ell}Q_\ell,
+\qquad \widetilde\Sigma=Q_k^\top\widehat\Sigma_{k\ell}Q_\ell,
+\qquad R_{k\ell}=\widehat\Sigma_{k\ell}-Q_k\widetilde\Sigma Q_\ell^\top.
+\]
+
+Then form the small array
+
+\[
+\widetilde C_{ij}
+=\frac{\widetilde\Sigma_{ij}+\alpha\widetilde T_{ij}}
+       {d_{ki}d_{\ell j}+\alpha},
+\tag{3}
+\]
+
+and recover the full edge by
+
+\[
+C_{k\ell}=T_{k\ell}+\frac{R_{k\ell}}{\alpha}
++Q_k(\widetilde C-\widetilde T)Q_\ell^\top.
+\tag{4}
+\]
+
+Equation (4) is essential when the covariances are singular.
+Multiplication by the covariance blocks acts only on the doubly
+projected component. On the complementary subspace, equation (1) reduces
+to multiplication by \(\alpha\). Thus the nonprojected part is retained
+through \(T+R/\alpha\); it is not silently set to zero. For exact sample
+cross-covariances, \(R\) is mathematically zero, but the implementation
+retains the remainder to preserve the prepared numerical problem and
+more general covariance inputs. For full bases the ordinary spectral
+reconstruction is used.
+
+The denominators in (3) change only when the augmentation parameter
+changes. No Kronecker matrix of dimension
+\((p_kp_\ell)\times(p_kp_\ell)\) is constructed, and no large inverse is
+formed.
+
+For example, computing \(Q_k^\top TQ_\ell\) can be associated in two
+ways. The respective leading multiply counts are
+
+\[
+a_kp_kp_\ell+a_kp_\ell a_\ell,
+\qquad
+p_kp_\ell a_\ell+a_kp_ka_\ell.
+\]
+
+The code chooses the smaller count, and makes an analogous decision for
+reconstruction. It uses double arithmetic for these cost estimates to
+avoid integer overflow at large dimensions.
+
+\hypertarget{algorithm-1-entrywise-proximal-and-dual-updates}{%
+\section{Algorithm 1: entrywise proximal and dual
+updates}\label{algorithm-1-entrywise-proximal-and-dual-updates}}
+
+Once the coefficient solve is complete, the L11 auxiliary and scaled
+dual updates are
+
+\[
+W=C+V,\qquad
+Z^{+}=\operatorname{sign}(W)\bigl(|W|-\rho/\mu\bigr)_+,
+\qquad V^{+}=W-Z^{+}.
+\]
+
+Each edge is processed independently. The compiled backend fuses
+elementwise operations and residual accumulation, reducing temporary
+arrays and R-level loop overhead. Its retained main state is still three
+edge collections, or about \(3q\) doubles. The additional 40\% state
+reduction described next applies to L21, not L11. The final reported L11
+coefficients use the thresholded auxiliary blocks, with the established
+numerical output cutoff.
+
+\hypertarget{algorithm-2-lines-712-compressed-group-state}{%
+\section{Algorithm 2, lines 7--12: compressed group
+state}\label{algorithm-2-lines-712-compressed-group-state}}
+
+\hypertarget{why-the-auxiliary-and-dual-arrays-can-share-storage}{%
+\subsection{Why the auxiliary and dual arrays can share
+storage}\label{why-the-auxiliary-and-dual-arrays-can-share-storage}}
+
+For a row of a group proximal update, let
+
+\[
+W_k=M_k(C^{+})+V_k,\qquad
+ a_{ki}^{+}=\left(1-\frac{\lambda_g}{\mu_g\|W_k[i,\cdot]\|_2}\right)_+.
+\tag{5}
+\]
+
+A zero norm with positive penalty gives multiplier zero; zero penalty
+gives multiplier one. Then
+
+\[
+G_k^{+}[i,\cdot]=a_{ki}^{+}W_k[i,\cdot],\qquad
+V_k^{+}[i,\cdot]=(1-a_{ki}^{+})W_k[i,\cdot].
+\]
+
+Consequently, after a proximal/dual update it suffices to retain
+
+\[
+H_k=G_k+V_k,\qquad
+G_k=\operatorname{diag}(a_k)H_k,\qquad
+V_k=\operatorname{diag}(1-a_k)H_k.
+\tag{6}
+\]
+
+These are exact identities for the updated state, not a low-rank
+approximation. In particular,
+
+\[
+G_k-V_k=\operatorname{diag}(2a_k-1)H_k,
+\tag{7}
+\]
+
+which supplies the next coefficient update directly.
+
+The stored \texttt{Hk} and \texttt{Hl} are the two endpoint slices of
+(6), both kept in the edge's \(p_k\times p_\ell\) orientation. The
+multiplier for endpoint \(k\) scales rows; the multiplier for endpoint
+\(\ell\) scales columns. This avoids repeatedly transposing the large
+second-endpoint array.
+
+\hypertarget{a-two-pass-subalgorithm}{%
+\subsection{A two-pass subalgorithm}\label{a-two-pass-subalgorithm}}
+
+The following is the implementation of the group update without
+constructing \(M_k\), \(W_k\), \(G_k\), or \(V_k\) as full concatenated
+matrices.
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Keep the old endpoint arrays \(H\) and row multipliers \(a\)
+  unchanged. Initialize one squared-norm accumulator of length \(p_k\)
+  for every view.
+\item
+  Traverse unordered edges. Form the target (2) using (7), and solve
+  (1)--(4) for the new \(C_{k\ell}\).
+\item
+  On the same edge, form the transient endpoint blocks
+\end{enumerate}
+
+\[
+W_{k\ell}^{(k)}=C_{k\ell}^{+}
+ +\operatorname{diag}(1-a_k)H_{k\ell}^{(k)},
+\qquad
+W_{k\ell}^{(\ell)}=C_{k\ell}^{+}
+ +H_{k\ell}^{(\ell)}\operatorname{diag}(1-a_\ell).
+\tag{8}
+\]
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{3}
+\tightlist
+\item
+  Add the row sums of squared entries of \(W^{(k)}\) to view \(k\)'s
+  accumulator, and the column sums for \(W^{(\ell)}\) to view \(\ell\)'s
+  accumulator. Discard these temporary blocks. After all incident edges
+  have contributed, take square roots and compute the new multipliers in
+  (5).
+\item
+  Traverse the edges a second time. Recompute (8), recover the old and
+  new auxiliary values transiently from (6), accumulate residuals, and
+  overwrite the endpoint \(H\) arrays with their corresponding \(W\)
+  blocks.
+\item
+  After every edge has been processed, replace \(a\) by \(a^{+}\). Check
+  convergence and, when required, update the augmentation parameter.
+\end{enumerate}
+
+The second pass trades inexpensive rereading/recomputation for avoiding
+persistent full auxiliary and dual matrices. Crucially, the shrinkage
+norm includes \textbf{all} incident edges for a variable. Shrinking each
+edge row separately would implement a different penalty.
+
+\hypertarget{preserve-the-correct-stopping-rule}{%
+\subsection{Preserve the correct stopping
+rule}\label{preserve-the-correct-stopping-rule}}
+
+With both endpoint slices in the edge orientation, the primal residual
+is
+
+\[
+r_{\rm pri}^2=\sum_{k<\ell}
+\left(\|C_{k\ell}-G_{k\ell}^{(k)}\|_F^2
++\|C_{k\ell}-G_{k\ell}^{(\ell)}\|_F^2\right).
+\]
+
+Writing \(\Delta G=G^{+}-G\), the dual residual is
+
+\[
+r_{\rm dual}^2=\mu_g^2\sum_{k<\ell}
+\|\Delta G_{k\ell}^{(k)}+\Delta G_{k\ell}^{(\ell)}\|_F^2.
+\tag{9}
+\]
+
+The endpoint changes must be added \textbf{before} squaring; replacing
+(9) by the sum of their separate squared norms loses the cross term. The
+code accumulates these scalars while visiting edges. The
+absolute/relative tolerances remain
+
+\[
+\begin{aligned}
+\epsilon_{\rm pri}
+&=\sqrt{2q}\,\epsilon_{\rm abs}
++\epsilon_{\rm rel}\max\left\{
+\left(2\sum_{k<\ell}\|C_{k\ell}\|_F^2\right)^{1/2},
+\left(\sum_k\|G_k\|_F^2\right)^{1/2}\right\},\\
+\epsilon_{\rm dual}
+&=\sqrt q\,\epsilon_{\rm abs}
++\epsilon_{\rm rel}\mu_g
+\left(\sum_{k<\ell}\|V_{k\ell}^{(k)}+V_{k\ell}^{(\ell)}\|_F^2\right)^{1/2}.
+\end{aligned}
+\]
+
+Neither a small coefficient change nor a small step is substituted for
+these residual tests.
+
+\hypertarget{adaptive-penalties-and-old-warm-starts}{%
+\subsection{Adaptive penalties and old warm
+starts}\label{adaptive-penalties-and-old-warm-starts}}
+
+If residual balancing changes \(\mu_g\) to \(f\mu_g\), the scaled dual
+must become \(V/f\). For each row set
+
+\[
+b=a+\frac{1-a}{f},\qquad H\leftarrow bH,\qquad a\leftarrow\frac a b.
+\tag{10}
+\]
+
+Indeed the new \(aH\) equals the old \(G\), and the new \((1-a)H\)
+equals the old \(V/f\). This preserves the usual scaled-ADMM rescaling
+rule without expanding the dual state; see S3.
+
+An arbitrary legacy warm start need not initially satisfy (6). The code
+accepts the old arrays, performs one ordinary group-proximal/dual
+update, and then compresses the resulting state. It does not project an
+arbitrary starting point into a different one. A coefficient-only start
+uses the existing \(G=M(C)\), \(V=0\) convention, represented by
+\(H=M(C)\) and \(a=1\).
+
+\hypertarget{the-memory-reduction-and-its-limits}{%
+\subsection{The memory reduction and its
+limits}\label{the-memory-reduction-and-its-limits}}
+
+Before compression, the principal L21 state contains \(C\) plus two
+endpoint copies each of \(G\) and \(V\): \(5q\) doubles. After
+compression it contains \(C\), two endpoint copies of \(H\), and \(p\)
+row multipliers: \(3q+p\) doubles. Thus
+
+\[
+\text{fraction saved}=\frac{5q-(3q+p)}{5q}
+=\frac25-\frac{p}{5q}\approx40\%.
+\]
+
+This counts the main state, not total process RAM. The large benchmark's
+retained R state decreased from 96,802,984 to 58,104,864 bytes,
+including object overhead. Covariance blocks, projected caches,
+remainders, coefficient outputs, R/native conversion copies, workspaces,
+and optional histories remain additional allocations. Group legacy
+output requested with \texttt{compact\_state=FALSE} is reconstructed
+only for retention after the optimized iterations.
+
+For balanced views, \(q\) remains quadratic in \(p\). Exact entrywise or
+row-group thresholding generally does not preserve a fixed low-rank
+coefficient factorization. Therefore these changes do not justify a
+claim that the whole estimator now uses \(O(pr)\) storage.
+
+\hypertarget{algorithms-1-and-2-support-and-only-the-leading-r-eigenpairs}{%
+\section{Algorithms 1 and 2: support and only the leading r
+eigenpairs}\label{algorithms-1-and-2-support-and-only-the-leading-r-eigenpairs}}
+
+\hypertarget{support-without-assembling-c}{%
+\subsection{Support without assembling
+C}\label{support-without-assembling-c}}
+
+For each edge, add its squared row norms to view \(k\) and squared
+column norms to view \(\ell\). This yields the full symmetric operator's
+row norms without constructing that operator. The selected set is the
+original
+
+\[
+\widehat S_\tau=\{i:\|\widehat C_{i\cdot}\|_2>\tau\}.
+\]
+
+Write \(s=|\widehat S_\tau|\). The existing numerical coefficient
+cleanup and row threshold are retained.
+
+\hypertarget{apply-metric-square-roots-instead-of-storing-them}{%
+\subsection{Apply metric square roots instead of storing
+them}\label{apply-metric-square-roots-instead-of-storing-them}}
+
+Let \(\widetilde\Sigma_{0,\widehat S\widehat S}\) be the restricted
+block covariance used for loading normalization. Its ridge is the
+configured multiplier times the mean selected marginal variance;
+eigenvalues are floored at \(10^{-10}\), as in the previous
+implementation.
+
+For a selected covariance block with basis \(Q\) and eigenvalues
+\(d_j\), let \(b=\max(\xi,10^{-10})\) for an omitted nullspace, and let
+\(\bar d_j=\max(d_j+\xi,10^{-10})\). Its action is
+
+\[
+\widetilde\Sigma^{\,\beta}x
+=b^\beta x+Q\operatorname{diag}(\bar d_j^\beta-b^\beta)Q^\top x,
+\qquad \beta\in\{1/2,-1/2\}.
+\tag{11}
+\]
+
+For a full basis, the equivalent direct spectral action is used. The
+code stores basis vectors and scalar weights, not dense square-root or
+inverse-square-root matrices.
+
+A full selected view reuses the prepared basis. For a partial support in
+a wide view, it can factor the thin matrix
+\(Q[\widehat S_k,\,\cdot]D^{1/2}\) rather than form a large selected
+covariance. Otherwise it uses a selected covariance eigendecomposition.
+These metric factorizations are distinct from the final eigenproblem;
+the implementation does not promise that no full decomposition of any
+small covariance is ever computed.
+
+\hypertarget{the-final-operator-callback}{%
+\subsection{The final operator
+callback}\label{the-final-operator-callback}}
+
+The required matrix is
+
+\[
+R_{\widehat S}
+=\widetilde\Sigma_{0,\widehat S\widehat S}^{1/2}
+ \widehat C_{\widehat S\widehat S}
+ \widetilde\Sigma_{0,\widehat S\widehat S}^{1/2}.
+\]
+
+For any input vector \(v\), the callback performs three operations:
+apply the right metric half-power using (11); multiply by selected
+coefficient edges; apply the left metric half-power. On an edge, the
+middle step accumulates
+
+\[
+y_k\mathrel{+}=C_{k\ell}[\widehat S_k,\widehat S_\ell]x_\ell,
+\qquad
+y_\ell\mathrel{+}=C_{k\ell}[\widehat S_k,\widehat S_\ell]^\top x_k.
+\tag{12}
+\]
+
+The C++ routine reads those entries directly from the stored edge. It
+does not allocate a new selected edge matrix on every callback. The
+independent R backend uses zero-filled per-view vectors and BLAS
+products with the stored edges.
+
+The numerical request is conceptually
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{RSpectra}\SpecialCharTok{::}\FunctionTok{eigs\_sym}\NormalTok{(operator, }\AttributeTok{k =}\NormalTok{ r, }\AttributeTok{n =}\NormalTok{ s, }\AttributeTok{args =}\NormalTok{ context,}
+                  \AttributeTok{which =} \StringTok{"LA"}\NormalTok{, }\AttributeTok{opts =} \FunctionTok{list}\NormalTok{(}\AttributeTok{tol =} \FloatTok{1e{-}12}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+\texttt{"LA"} requests the largest \textbf{algebraic} eigenvalues. The
+default \texttt{"LM"}, or a leading singular-value calculation, can
+select large negative modes of this indefinite symmetric operator. They
+are not interchangeable. RSpectra's documented function interface
+supports exactly this matrix-vector representation; see S4.
+
+The code asks for \(r\) output pairs but uses a larger internal Krylov
+basis. Its first basis size is \(\min\{s,\max(4r+1,30)\}\); a retry uses
+\(\min\{s,\max(8r+1,60)\}\). Approximate eigensolver storage is
+\(O(sm+m^2+sr)\) for basis size \(m\), in addition to stored edges and
+metric factors, rather than a newly assembled \(s^2\) operator. Runtime
+depends on the number of matrix-vector products, spectral gaps, and
+reorthogonalization; it is not universally \(O(sr)\).
+
+Finite eigenpairs, the requested convergence count, residuals
+\(\|Ru_j-\theta_ju_j\|_2\), and orthogonality are checked. An inadequate
+result is retried with the larger Krylov space. Persistent failure
+raises an error without an automatic dense EVD. The positivity
+requirement is preserved, including rejection when the residual leaves
+the positive-eigenvalue threshold unresolved. A two-dimensional problem
+has an analytic leading-pair solution. Explicit dense mode, an
+explicitly raised minimum partial-solve dimension, or requesting all
+\(s\) pairs permits dense recovery; the reference backend also remains
+dense for diagnostics.
+
+Finally,
+
+\[
+\widehat L_{\widehat S}
+=\widetilde\Sigma_{0,\widehat S\widehat S}^{-1/2}\widehat U_r,
+\qquad \widehat L_{\widehat S^c}=0,
+\qquad \widehat\lambda_j=1+\widehat\theta_j.
+\]
+
+\hypertarget{cross-validation-and-retained-outputs}{%
+\section{Cross-validation and retained
+outputs}\label{cross-validation-and-retained-outputs}}
+
+For validation observations centered using \textbf{training} means,
+partition \(L\) by views and compute \(Y_k=X_kL_k\). Then
+
+\[
+Q=\frac1{n_v}\sum_kY_k^\top Y_k=L^\top\widehat\Sigma_0L,
+\qquad
+A=\frac1{n_v}\left(\sum_kY_k\right)^\top
+                   \left(\sum_kY_k\right)=L^\top\widehat\Sigma L.
+\]
+
+For \(n_v<p\), the validation object keeps the views rather than two
+dense \(p\times p\) covariance matrices. All score matrices above are
+only \(r\times r\). If \(Q=V\operatorname{diag}(d_j)V^\top\), the
+existing ridge/floor gives \(\bar d_j\), and
+
+\[
+\operatorname{score}(L)=\sum_j\frac{v_j^\top Av_j}{\bar d_j}.
+\]
+
+This avoids an explicitly assembled inverse square root even in the
+small score problem. CV minimizes its negative and still requires a
+finite score on every fold.
+
+Other memory controls bound the support-factor cache by both entry count
+and estimated bytes (64 MiB by default), reuse fold preparation and warm
+starts, and make histories/full operators/large retained fits optional.
+The cache bound is not a total RAM limit. Independent CV workers have
+private mutable solver states; supported fork workers can share
+read-only pages until a write, while separate-session workers require
+independent copies. More workers can therefore increase peak memory
+substantially.
+
+\hypertarget{storage-improvements-for-sgca-rgcca-sgcca-and-multicca}{%
+\section{Storage improvements for SGCA, RGCCA, SGCCA and
+MultiCCA}\label{storage-improvements-for-sgca-rgcca-sgcca-and-multicca}}
+
+The following are \textbf{proposals based on the current wrappers and
+upstream implementations}, not measured speedups or new numerical
+backends in version 0.2.13. That version changes SGCA's time policy; it
+does not silently replace the other estimators.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3333}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Method
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Main opportunity
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+What remains or must be preserved
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+SGCA (Gao--Ma) & Data-matrix products in gradient descent; structured
+metric operations in initialization & Dense lifted initializer and its
+projection; original thresholding and backtracking \\
+RGCCA & Remove wrapper Gram copies; reuse appropriate small metric
+factors & Existing automatic primal/dual choice and parameter-dependent
+deflation \\
+SGCCA & Work through scores and feature-weight vectors; discard large
+raw fit objects when unnecessary & Feature-space sparsity constraint,
+scheme, sequential updates and deflation \\
+MultiCCA & Data products and low-rank deflation corrections instead of
+several dense Gram collections & PMA update order, threshold helper,
+scaling and stopping convention \\
+\end{longtable}
+
+\hypertarget{sgca-gradient-descent-and-initialization-are-different-problems}{%
+\subsection{SGCA: gradient descent and initialization are different
+problems}\label{sgca-gradient-descent-and-initialization-are-different-problems}}
+
+The current gradient code holds dense \(A=\widehat\Sigma\) and
+\(B=\widehat\Sigma_0+\delta I\). Its scaled-iterate objective is
+
+\[
+f(W)=-\frac12\operatorname{tr}(W^\top AW)
++\frac14\|W^\top BW-\lambda I_r\|_F^2,
+\qquad
+\nabla f(W)=-AW+BW(W^\top BW-\lambda I_r).
+\]
+
+There is an exact data-space implementation. Partition \(W\) by views
+and calculate
+
+\[
+(AW)_k=\frac1nX_k^\top\left(\sum_\ell X_\ell W_\ell\right),
+\qquad
+(BW)_k=\frac1nX_k^\top(X_kW_k)+\delta W_k.
+\tag{13}
+\]
+
+No concatenated \(X\), full \(A\), or full \(B\) is needed for these
+products. For small \(r\), their work is approximately \(O(npr)\) and
+the extra working arrays can be \(O(pr+nr+r^2)\) beyond the data. The
+row hard threshold, objective test, gradient-mapping stopping rule and
+backtracking can remain unchanged. Gao--Ma also describe data-level
+multiplication for their gradient step; see S5. This improvement matters
+most when \(p\gg n\); a precomputed covariance can be preferable for
+other shapes or many repeated products.
+
+The current \textbf{initializer} is different: \texttt{Pi}, \texttt{H},
+\texttt{Gamma}, and previous/temporary arrays have dimension
+\(p\times p\), and \texttt{updateH()} performs a dense symmetric EVD.
+Replacing gradient products alone does not remove that peak.
+
+One exact restructuring is to retain \(B\) and \(B^{1/2}\) as view
+blocks, so products such as \(B\Pi B\) are computed blockwise. Another
+is to retain only loading factors and scalar diagnostics after
+initialization, rather than every dense intermediate. Reordering the
+candidate traversal to finish all \((k,\lambda)\) values for one
+\(\rho\) before releasing that initializer could bound caches; candidate
+identifiers and tie rules would need to be preserved. Some caching and
+optional raw-fit retention already exist.
+
+A detail in the bundled source matters: its projection clips shifted
+eigenvalues as
+
+\[
+h_i=\min\{1,\max(d_i-\theta,0)\}.
+\]
+
+It uses the constraint \(\sum_i h_i\leq r\) and leaves \(\theta=0\) when
+already feasible. The paper's Fantope is defined with trace
+\textbf{equal} to \(r\). This pre-existing difference was preserved, not
+changed as a performance edit. In either case, the projected matrix may
+have more than \(r\) positive eigenvalues, so computing only \(r\)
+eigenpairs is not generally an exact projection. A correct partial
+projection would have to expand the spectral search until the omitted
+spectrum is certified inactive; its rank cannot be fixed at \(r\) in
+advance. A fixed rank factorization or a different initializer would
+change the method and require separate statistical validation.
+
+Also, the current extraction from \texttt{Pi} uses a leading
+\textbf{SVD}. Replacing it with a partial SVD can preserve that rule,
+subject to numerical checks. Replacing it with largest-algebraic
+eigenvectors can change the result when a finite-iteration \texttt{Pi}
+is indefinite. This is separate from EGCAR's final symmetric loading
+EVD.
+
+\hypertarget{rgcca-use-the-dual-formulation-already-available}{%
+\subsection{RGCCA: use the dual formulation already
+available}\label{rgcca-use-the-dual-formulation-already-available}}
+
+The public RGCCA solver already selects a primal or dual formulation
+according to block dimensions and reports \texttt{primal\_dual}; see S6.
+For a wide block this moves regularized metric work to an \(n\times n\)
+matrix. Therefore implementing another dual solver is not the first
+priority.
+
+For intuition, with \(M=\tau I+(1-\tau)X^\top X/n\) and \(0<\tau\leq1\),
+Woodbury gives
+
+\[
+M^{-1}g=\tau^{-1}\left[g-cX^\top(I+cXX^\top)^{-1}Xg\right],
+\qquad c=\frac{1-\tau}{n\tau}.
+\]
+
+A factorization can apply the smaller solve without forming an inverse.
+The \(\tau=0\) case needs the intended singular-system/pseudoinverse
+treatment. Reusing a fixed block's spectrum across a grid of positive
+\(\tau\) values is possible, but later deflated blocks can depend on the
+candidate and cannot be blindly reused.
+
+The EGCAR wrapper currently builds \texttt{training\_gram\_blocks()} for
+sign alignment even though it already has the centered training views.
+Its existing fallback can align signs using the much smaller score
+matrix \(Y=[X_1a_1,\ldots,X_Ka_K]\) and \(Y^\top Y/n\). Avoiding those
+wrapper-level Gram arrays is a promising exact saving. Retaining only
+\texttt{astar}, scores if needed, and scalar diagnostics can also reduce
+saved output. \texttt{astar} must be preserved for mapping the original
+centered data to all deflated components; substituting the raw deflated
+weights \texttt{a} is not equivalent.
+
+\hypertarget{sgcca-exploit-score-vectors-retain-feature-space-sparsity}{%
+\subsection{SGCCA: exploit score vectors, retain feature-space
+sparsity}\label{sgcca-exploit-score-vectors-retain-feature-space-sparsity}}
+
+In the inspected RGCCA source, a sparse block uses a feature-weight
+update and the specified constraint projection. The common inner loop
+forms directions from block scores. For a direction
+\(z_k\in\mathbb R^n\), its feature update uses \(X_k^\top z_k\), which
+requires no \(p\times p\) cross-covariance. Thus storing data, scores,
+and a few feature-weight vectors is sufficient for this part of the
+calculation; see S7.
+
+The same sign-alignment and output-retention improvements proposed for
+RGCCA apply. However, an ordinary low-dimensional dual
+reparameterization does not automatically preserve the featurewise L1
+constraint: thresholded feature weights need not stay in the original
+row space. Any custom backend must preserve the sparsity-bound scaling,
+factorial/centroid/horst scheme, sequential update order, and component
+deflation. We should benchmark the current upstream implementation
+before rewriting it.
+
+\hypertarget{multicca-avoid-repeated-gram-and-deflation-matrices}{%
+\subsection{MultiCCA: avoid repeated Gram and deflation
+matrices}\label{multicca-avoid-repeated-gram-and-deflation-matrices}}
+
+The current \texttt{multicca\_common\_cv()} prepares normalized, raw and
+centered Gram collections. Its Gram backend also forms deflated
+cross-products for later components. Since the training views are
+already centered, the centered correction is mathematically redundant,
+apart from floating-point centering residuals. Storing transposed pair
+blocks duplicates further data. Even choosing
+\texttt{multicca\_backend="PMA"} currently passes through this shared
+preparation, so changing that option alone does not eliminate wrapper
+Gram storage.
+
+An exact alternative applies cross-products through data:
+
+\[
+(X_i^\top X_j)w_j=X_i^\top(X_jw_j).
+\]
+
+For previously extracted weight matrices \(W_i,W_j\) and diagonal
+deflation coefficients \(D_{ij}\), use
+
+\[
+\left(X_i^\top X_j-W_iD_{ij}W_j^\top\right)w_j
+=X_i^\top(X_jw_j)-W_iD_{ij}(W_j^\top w_j).
+\tag{14}
+\]
+
+This retains low-rank deflation factors instead of a new dense
+cross-product. Scores \(X_jw_j\) can be updated as weights change. For a
+fully connected graph, the nondeflated sums can be formed from a shared
+sum of scores, subtracting the current block, while respecting the
+sequential sweep. PMA's upstream \texttt{UpdateW} already expresses its
+update through data and deflation factors; see S8.
+
+For \(p\gg n\) this can exchange \(O(p^2)\) Gram storage for data plus
+approximately \(O(pr)\) retained weights and small score arrays. It is a
+memory/runtime tradeoff, not a universal speed improvement. The existing
+Gram backend can win for modest \(p\) and many candidates. A useful
+future interface would choose a backend using estimated bytes, with
+numerical comparisons of loadings, criteria and component deflation. The
+present PMA diagnostic iteration count is not by itself a convergence
+certificate.
+
+\hypertarget{a-common-prerequisite}{%
+\subsection{A common prerequisite}\label{a-common-prerequisite}}
+
+The shared \texttt{egcar\_cv\_data} object currently prepares EGCAR
+training covariances for every fold. Even a fully data-based comparison
+backend would still carry these if it used that same object unchanged.
+End-to-end storage improvement therefore also calls for a lightweight
+fold representation or lazy method-specific preparation. Shared fold
+indices, training means, validation scoring, seeds, penalties, and tie
+rules should remain identical. Reducing the worker count and avoiding
+large retained fits are immediately available experiment controls;
+changing grids or convergence tolerances is not an equivalent storage
+optimization.
+
+\hypertarget{sgcas-six-hour-policy-in-version-0.2.13}{%
+\section{SGCA's six-hour policy in version
+0.2.13}\label{sgcas-six-hour-policy-in-version-0.2.13}}
+
+The new default is one \textbf{elapsed wall-clock budget of 21,600
+seconds} for a complete SGCA CV grid and its full-sample refit. This is
+not CPU time and not six hours for each candidate. A new budget starts
+for each dataset/rank/replicate in the experiment runner. Shared
+data/fold preparation happens first; SGCA-specific preparation,
+initialization, candidate evaluation, fold work and final refit are
+inside the budget.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{bm }\OtherTok{\textless{}{-}} \FunctionTok{benchmark\_control}\NormalTok{(}
+  \AttributeTok{sgca\_time\_limit =} \DecValTok{6} \SpecialCharTok{*} \DecValTok{60} \SpecialCharTok{*} \DecValTok{60}\NormalTok{,}
+  \AttributeTok{sgca\_init\_max\_iter =} \ConstantTok{Inf}\NormalTok{,}
+  \AttributeTok{sgca\_tgd\_max\_iter =} \ConstantTok{Inf}
+\NormalTok{)}
+\NormalTok{fit }\OtherTok{\textless{}{-}} \FunctionTok{sgca\_cv}\NormalTok{(shared, }\AttributeTok{rank =} \DecValTok{1}\NormalTok{, }\AttributeTok{benchmarks =}\NormalTok{ bm)}
+
+\NormalTok{cfg }\OtherTok{\textless{}{-}} \FunctionTok{egcar\_experiment\_config}\NormalTok{(}\AttributeTok{sgca\_time\_limit =} \DecValTok{6} \SpecialCharTok{*} \DecValTok{60} \SpecialCharTok{*} \DecValTok{60}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+Both SGCA iteration caps now default to \texttt{Inf}. They can still be
+set explicitly for reproducibility or short tests. The TGD iteration
+uses a \texttt{while} loop, so an infinite limit does not allocate an
+infinite index sequence. Its existing stopping test still checks both
+relative gradient mapping and relative iterate change; a tiny
+backtracking step alone is not convergence.
+
+A parent process monitors a \texttt{callr} R subprocess, polling at most
+every 0.1 seconds during execution. On budget exhaustion it stops the
+process tree, including fold workers. This can interrupt an initializer
+blocked in compiled linear algebra, which a check only between R
+iterations cannot do. Startup, serialization, scheduling and termination
+introduce overhead, so the returned elapsed duration is measured rather
+than assumed to be exactly 21,600 seconds. The subprocess holds its own
+input copy: this timeout mechanism can increase peak memory and is not
+one of the claimed EGCAR memory reductions. Setting the budget to
+\texttt{Inf} runs in-process without supervision. See S9 for the process
+API.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3333}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Outcome
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Reported status
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Convergence and loading
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Procedure finishes and final stopping rules pass & \texttt{ok} &
+\texttt{converged=TRUE}, loading returned \\
+Explicit finite iteration cap is reached & \texttt{not\_converged} &
+\texttt{converged=FALSE}; a valid approximate loading may be returned \\
+Six-hour budget is exhausted & \texttt{time\_limit} &
+\texttt{timed\_out=TRUE}, \texttt{converged=FALSE}, \texttt{L=NULL} \\
+A numerical fit/CV error occurs & Existing error status, or propagated
+error & Not relabeled as a timeout \\
+\end{longtable}
+
+The timeout message starts \textbf{``SGCA did not converge in real
+time''} and states the budget. More precisely, the requested
+CV-and-refit procedure did not finish in the allowed time. It does not
+prove mathematical nonconvergence. An incomplete tuning run does not
+choose the best candidate seen so far or score unfinished loadings as a
+successful result. A watchdog timeout currently returns empty CV tables
+and records whether it interrupted CV/startup or refitting; it does not
+retain every interrupted candidate's state.
+
+The installed package entry points implement this policy. The historical
+script \texttt{run\_EGCAR\_local.R} in \texttt{inst/standalone/} is an
+independent reference and retains its old controls. Use
+\texttt{sgca\_cv()} or \texttt{run\_egcar\_experiments()} for the new
+policy.
+
+\hypertarget{evidence-reproduction-and-limits}{%
+\section{Evidence, reproduction and
+limits}\label{evidence-reproduction-and-limits}}
+
+\hypertarget{previous-egcar-measurements}{%
+\subsection{Previous EGCAR
+measurements}\label{previous-egcar-measurements}}
+
+The smaller test used \(n=50\), \((p_1,p_2,p_3)=(320,360,400)\), \(r=2\)
+and 40 iterations. The larger used \(n=30\), \((800,900,1000)\), \(r=2\)
+and 20 iterations. Both used direct penalty 0.02, prepared inputs and
+the serial compiled backend.
+
+\begin{longtable}[]{@{}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2000}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedleft
+Total p
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Method
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Total seconds, 0.2.11
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Total seconds, 0.2.12
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Old/new ratio
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+1080 & L11 & 1.430 & 1.400 & 1.02 \\
+1080 & L21 & 1.456 & 1.333 & 1.09 \\
+2700 & L11 & 4.100 & 2.197 & 1.87 \\
+2700 & L21 & 5.577 & 2.980 & 1.87 \\
+\end{longtable}
+
+At \(p=2700\), L11 loading extraction decreased from 2.113 to 0.151
+seconds and L21 extraction from 3.398 to 0.832 seconds. ADMM solve time
+changed little. Both versions already used partial eigenpair extraction
+at these dimensions; the key new difference was avoiding the dense
+operator and its metric-root matrices, not merely changing a full EVD to
+a partial one.
+
+Across these benchmark cases, selected sets matched exactly. Maximum
+coefficient, eigenvalue and eigenvector-projector differences were
+approximately \(1.1\times10^{-17}\), \(1.6\times10^{-14}\) and
+\(6.5\times10^{-14}\). Projectors allow for sign changes or basis
+rotations within the recovered eigenspace.
+
+Whole-process peak RSS for the large benchmark decreased from 750,192 to
+422,368 KiB. That process included preparation and both penalty
+families; these are not isolated per-fit allocation measurements. The
+benchmark is too narrow to establish a general speed ratio, a comparison
+against SGCA/RGCCA/SGCCA/MultiCCA, or a six-hour convergence rate.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\ExtensionTok{Rscript}\NormalTok{ tools/benchmark\_0212.R OLD\_LIBRARY NEW\_LIBRARY results 3}
+\ExtensionTok{Rscript}\NormalTok{ tools/benchmark\_0212.R OLD\_LIBRARY NEW\_LIBRARY results\_large 3 large}
+\end{Highlighting}
+\end{Shaded}
+
+Version 0.2.12 passed 767 test expectations;
+\texttt{R\ CMD\ check\ -\/-no-manual} reported zero errors and warnings
+and three informational notes. One optional comparison suite was
+skipped. The tests included independent dense comparisons, tall/wide and
+degenerate inputs, old and compressed warm starts, adaptive penalties,
+operator products, metric actions, algebraic eigenvalue order and
+partial-solver failure. The runtime was R 4.3.3 on Ubuntu 24.04, x86-64,
+with the system BLAS/LAPACK.
+
+\hypertarget{new-timeout-validation}{%
+\subsection{New timeout validation}\label{new-timeout-validation}}
+
+Version 0.2.13 adds tests for default/invalid budgets,
+unlimited-iteration numerical stopping, successful subprocess return,
+solver errors, short actual elapsed-time termination, process-tree
+cleanup, supervised/in-process agreement, serial/parallel SGCA
+agreement, the reference initializer, and public timeout status
+propagation. Short budgets test the same watchdog; \textbf{no six-hour
+wait or full six-hour convergence experiment was performed}. The
+complete updated suite passed \textbf{815 expectations}, with zero
+failures or test warnings and one optional suite skipped.
+\texttt{R\ CMD\ check\ -\/-no-manual} reported zero errors, zero
+warnings and four informational notes: optional suggestions unavailable,
+the C++14 specification, binary size, and installation of the requested
+LaTeX source. The accompanying \texttt{VALIDATION\_0213.md} records the
+details.
+
+The proposed storage backends for the four comparison methods have not
+been implemented or benchmarked in this release. They should be
+validated against the existing code before using their timings in a
+methods comparison.
+
+\hypertarget{code-map}{%
+\section{Code map}\label{code-map}}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Responsibility
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Source location
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Covariance preparation, exact spectral solve support, metric factors and
+callback & \texttt{R/helpers.r} \\
+L11 dispatch and independent R ADMM implementation &
+\texttt{R/reduced\_rank\_regression.R} \\
+Group output, compatibility and retained state &
+\texttt{R/group\_reduced\_rank\_regression.R} \\
+Fused compiled ADMM and selected-edge multiplication &
+\texttt{src/egcar\_native.cpp} \\
+Common held-out score & \texttt{R/metrics.R} \\
+SGCA initialization, cached algebra and penalized TGD &
+\texttt{R/sgca\_initializer.R}, \texttt{R/alt\_SGCA.R} \\
+Six-hour supervisor and timeout result & \texttt{R/sgca\_budget.R} \\
+Public controls and experiment defaults & \texttt{R/controls.R},
+\texttt{R/experiment\_config.R} \\
+RGCCA/SGCCA and MultiCCA adapters & \texttt{R/alt\_RGCCA.R},
+\texttt{R/alt\_SGCCA.R}, \texttt{R/alt\_MultiCCA\_CrossValidation.R} \\
+Measured 0.2.12 benchmarks and raw evidence &
+\texttt{tools/benchmark\_0212.R},
+\texttt{inst/validation/performance\_0212\_*} \\
+\end{longtable}
+
+\hypertarget{sources}{%
+\section{Sources}\label{sources}}
+
+The mathematical reductions above are derived from the supplied
+algorithms and checked against this package's source. External
+implementation/documentation sources were inspected on 24 September
+2026.
+
+S1. ccar3 0.1.2, CRAN manual:
+\url{https://cran.r-project.org/web/packages/ccar3/ccar3.pdf}.
+
+S2. ccar3, source \texttt{R/ecca.r}:
+\url{https://github.com/cran/ccar3/blob/master/R/ecca.r}.
+
+S3. Boyd et al., \emph{Distributed Optimization and Statistical Learning
+via the Alternating Direction Method of Multipliers}:
+\url{https://web.stanford.edu/~boyd/papers/pdf/admm_distr_stats.pdf}.
+
+S4. RSpectra manual, function interface and eigenvalue selection:
+\url{https://cran.r-project.org/web/packages/RSpectra/RSpectra.pdf}.
+
+S5. Gao and Ma (2023), \emph{Sparse GCA and Thresholded Gradient
+Descent}, JMLR 24(135), 1--61:
+\url{https://jmlr.org/papers/v24/21-0745.html}. Bundled initializer
+provenance:
+\url{https://github.com/TannisthaM/SGCA/blob/main/R/gao_cv_functions.R}.
+
+S6. RGCCA public interface, output fields and primal/dual description:
+\url{https://rgcca-factory.github.io/RGCCA/reference/rgcca.html}.
+
+S7. RGCCA source, \texttt{block.R}, \texttt{block\_init.R},
+\texttt{block\_update.R}, \texttt{rgcca\_inner\_loop.R}:
+\url{https://github.com/rgcca-factory/RGCCA/tree/main/R}.
+
+S8. PMA source, \texttt{R/MultiCCA.R}, particularly \texttt{UpdateW}:
+\url{https://github.com/cran/PMA/blob/master/R/MultiCCA.R}.
+
+S9. callr background R sessions:
+\url{https://callr.r-lib.org/reference/r_bg.html}; processx process-tree
+termination: \url{https://processx.r-lib.org/reference/process.html}.
+
+\end{document}

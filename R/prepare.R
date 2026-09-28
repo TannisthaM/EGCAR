@@ -9,7 +9,7 @@
 #' @param nfolds Number of nonempty folds.
 #' @param seed Nonnegative integer seed. The caller's RNG state is restored.
 #' @param fold_id One nonmissing fold label per row. Supplied labels are never regenerated.
-#' @details Every covariance uses divisor n for that split. Validation observations are centered at training means, not their own means. All training splits must have at least two observations. A prepared object stores covariance information and means but not the full raw data. A CV-data object retains raw data and full and fold preparations, so it can be reused for both EGCAR penalties and all comparison methods. Stored means and raw data may be sensitive; save these objects accordingly.
+#' @details Every covariance uses divisor n for that split. Validation observations are centered at training means, not their own means. All training splits must have at least two observations. A prepared object stores covariance blocks, compact spectral information and means but not the full raw data. Dense reference-only caches are constructed only by reference/oracle solvers. Wide validation splits retain training-centered observations instead of dense validation covariances. A CV-data object retains raw data and full and fold preparations, so it can be reused for both EGCAR penalties and all comparison methods. Stored means and raw data may be sensitive; save these objects accordingly.
 #' @return \code{egcar_prepare} returns an \code{egcar_prepared} object. \code{egcar_folds} returns integer fold labels. \code{egcar_cv_data} returns an \code{egcar_cv_data} object.
 #' @rdname egcar_prepare
 #' @examples

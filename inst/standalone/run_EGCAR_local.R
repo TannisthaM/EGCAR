@@ -1,5 +1,7 @@
 #!/usr/bin/env Rscript
-# Standalone accelerated EGCAR experiment, revision 0.2.0.
+# Historical standalone snapshot, retained as an independent comparison.
+# For current memory optimizations and the 0.2.13 SGCA six-hour budget, use installed package functions,
+# including egcar::run_egcar_experiments(). This file is not sourced by the package.
 # Exactly four EGCAR curves: L11-CV, L11-rate, L21-CV, L21-rate.
 # Positive CV grids only; no combined/tied EGCAR benchmark.
 # SGCA initialization is bundled with its MIT notice; its local CV/TGD are retained.

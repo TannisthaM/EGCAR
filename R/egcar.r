@@ -9,7 +9,7 @@
 #' @param lambda A direct nonnegative penalty coefficient, or the coefficient vector for a path.
 #' @param control An \code{egcar_control} object or a named subset of its arguments.
 #' @param init An optional same-family fitted object or dimension-compatible ADMM-state list. Used as a warm start.
-#' @param multiplier Nonnegative multiplier applied to the selected rate scale.
+#' @param multiplier Nonnegative multiplier applied to the selected rate scale. NULL uses the frozen pilot-calibrated L21 default (0.05), or 1 for L11. Explicit numeric values retain their original meaning.
 #' @details For each unordered view pair the smooth loss is
 #' \deqn{\tfrac12\mathrm{tr}(C_{kl}^{T}S_{kk}C_{kl}S_{ll})-\langle S_{kl},C_{kl}\rangle.}
 #' The entrywise version adds \eqn{\lambda\sum_{k<l}\|C_{kl}\|_{1,1}}.
@@ -27,7 +27,7 @@
 #' Paths visit coefficients from strongest to weakest, return them in input order,
 #' and reuse primal/scaled-dual states with the configured initial augmentation
 #' parameter, matching the supplied script's convention.
-#' @return \code{egcar_fit} and \code{egcar_rate} return \code{egcar_fit} objects containing stacked loadings \code{L}, view loadings, edge blocks \code{C}, the raw solver state, residuals, convergence status, selected rows, training means, controls and separated timings. A path returns the coefficient vector and corresponding fitted objects.
+#' @return \code{egcar_fit} and \code{egcar_rate} return \code{egcar_fit} objects containing stacked loadings \code{L}, view loadings, edge blocks \code{C}, the raw solver state (compressed Hk/Hl/a for L21 by default; legacy G/V with compact_state=FALSE), residuals, convergence status, selected rows, training means, controls and separated timings. A path returns the coefficient vector and corresponding fitted objects.
 #' @rdname egcar_fit
 #' @examples
 #' sim <- egcar_simulate(n = 30, p_list = c(3, 4, 5), active_per_view = 2)
@@ -60,9 +60,11 @@ egcar_fit <- function(x, rank = 1L, penalty = c("l11", "l21"), lambda = 0.01,
 
 #' @rdname egcar_fit
 #' @export
-egcar_rate <- function(x, rank = 1L, penalty = c("l11", "l21"), multiplier = 1,
+egcar_rate <- function(x, rank = 1L, penalty = c("l11", "l21"), multiplier = NULL,
                        control = egcar_control()) {
   penalty <- match.arg(penalty)
+  default_multiplier <- is.null(multiplier)
+  if (default_multiplier) multiplier <- .egcar_default_rate_multiplier(penalty)
   .egcar_scalar(multiplier, "multiplier")
   prepared <- egcar_prepare(x)
   if (!is.finite(prepared$n)) stop("Rate scaling requires a finite sample size.")
@@ -70,6 +72,12 @@ egcar_rate <- function(x, rank = 1L, penalty = c("l11", "l21"), multiplier = 1,
     sqrt((max(prepared$p - prepared$p_list) + log(prepared$p)) / prepared$n)
   out <- egcar_fit(prepared, rank, penalty, lambda, control)
   out$rate_multiplier <- multiplier
+  out$rate_multiplier_source <- if (default_multiplier && penalty == "l21")
+    "independent_pilot_0214" else if (default_multiplier) "default" else "explicit"
+  diagnostic_start <- proc.time()[[3L]]
+  out$rate_zero_bound <- if (penalty == "l21") .egcar_l21_zero_bound(prepared$prep) else NA_real_
+  out$rate_zero_certified <- if (penalty == "l21") lambda > out$rate_zero_bound else NA
+  out$rate_diagnostic_time <- proc.time()[[3L]] - diagnostic_start
   out$rate_rule <- if (penalty == "l11") "sqrt(log(p)/n)" else "sqrt((d_max+log(p))/n)"
   out$call <- match.call()
   out
@@ -145,43 +153,12 @@ egcar_cv <- function(x, rank = 1L, penalty = c("l11", "l21"),
   if (rank > data$p) stop("rank exceeds the number of variables.")
   workers <- as.integer(min(workers, data$nfolds))
   e <- .egcar_engine(control, workers = workers)
-  order_path <- order(lambda, decreasing = TRUE)
   timing_start <- proc.time()[[3L]]
   .egcar_with_seed(seed, .egcar_with_threads(control$blas_threads,
     .egcar_with_workers(workers, {
-      rows <- e$parallel_map_candidates(data$folds, function(fo) {
-        f <- fo$fold
-        fo$prep$loading_factor_cache <- new.env(parent = emptyenv())
-        previous <- NULL
-        result <- vector("list", length(lambda))
-        for (j in order_path) {
-          start <- proc.time()[[3L]]
-          notes <- character()
-          one <- tryCatch(withCallingHandlers({
-            raw <- .egcar_solve_one(fo$prep, penalty, lambda[[j]], control, e,
-                                   init = previous, cv = TRUE, history = FALSE)
-            loading <- .egcar_loading(fo$prep, raw, as.integer(rank), control, e, FALSE)
-            score <- if (isTRUE(loading$valid)) validation_score(loading$L, fo$validation) else -Inf
-            list(score = score, converged = raw$converged, iterations = raw$iterations,
-                 state = raw[if (penalty == "l11") c("C", "Z", "H") else c("C", "G", "V")],
-                 error = if (!isTRUE(loading$valid)) loading$reason else
-                   if (!is.finite(score)) "Nonfinite common validation score." else NA_character_)
-          }, warning = function(w) {
-            notes <<- unique(c(notes, conditionMessage(w)))
-            invokeRestart("muffleWarning")
-          }), error = function(err) {
-            list(score = -Inf, converged = FALSE, iterations = NA_integer_,
-                 state = NULL, error = conditionMessage(err))
-          })
-          if (!is.null(one$state)) previous <- one$state
-          result[[j]] <- data.frame(candidate = j, lambda = lambda[[j]], fold = f,
-            n_train = fo$prep$n, score = one$score, loss = -one$score,
-            converged = one$converged, iterations = one$iterations,
-            elapsed = proc.time()[[3L]] - start, error_message = one$error,
-            warning_message = if (length(notes)) paste(notes, collapse = " | ") else NA_character_)
-        }
-        do.call(rbind, result)
-      })
+      fold_task <- .egcar_cv_fold_task(lambda, as.integer(rank), penalty, control, e)
+      fold_inputs <- lapply(data$folds, function(fo) { fo$train_views <- NULL; fo })
+      rows <- e$parallel_map_candidates(fold_inputs, fold_task)
       fold_table <- do.call(rbind, rows)
       grid <- data.frame(lambda = lambda, candidate = seq_along(lambda))
       table <- summarize_loading_cv(grid, fold_table, data$nfolds)
@@ -200,7 +177,9 @@ egcar_cv <- function(x, rank = 1L, penalty = c("l11", "l21"),
         feature_names = data$full$feature_names, p_list = data$p_list,
         p = data$p, n = data$n, call = cl, control = control)
       if (is.na(best_index)) {
-        out$fit <- NULL; out$L <- NULL; out$best <- NULL; out$lambda <- NA_real_
+        # Keep named NULLs: removing `fit` lets R's `$fit` partially match
+        # `fit_time`, making a failed CV result appear to contain a refit.
+        out[c("fit", "L", "best")] <- list(NULL, NULL, NULL); out$lambda <- NA_real_
         out$fit_time <- 0; out$loading_time <- 0; out$total_time <- tuning_time
         out$status <- "no_valid_cv"; out$converged <- FALSE
         out$iterations <- NA_integer_
@@ -212,7 +191,7 @@ egcar_cv <- function(x, rank = 1L, penalty = c("l11", "l21"),
         refit <- tryCatch(egcar_fit(data$full, rank, penalty, out$lambda, control),
                           error = function(err) list(error = conditionMessage(err)))
         if (!inherits(refit, "egcar_fit")) {
-          out$fit <- NULL; out$L <- NULL
+          out[c("fit", "L")] <- list(NULL, NULL)
           out$fit_time <- proc.time()[[3L]] - refit_start; out$loading_time <- 0
           out$status <- "refit_error"; out$converged <- FALSE
           out$iterations <- NA_integer_; out$error <- refit$error
@@ -227,4 +206,44 @@ egcar_cv <- function(x, rank = 1L, penalty = c("l11", "l21"),
       class(out) <- "egcar_cv"
       out
     })))
+}
+
+# A compact closure avoids exporting the caller's raw data, full preparation,
+# and all other folds to each multisession worker.
+.egcar_cv_fold_task <- function(lambda, rank, penalty, control, e) {
+  force(lambda); force(rank); force(penalty); force(control); force(e)
+  order_path <- order(lambda, decreasing = TRUE)
+  function(fo) {
+    f <- fo$fold
+    fo$prep$loading_factor_cache <- new.env(parent = emptyenv())
+    previous <- NULL
+    result <- vector("list", length(lambda))
+    for (j in order_path) {
+      start <- proc.time()[[3L]]
+      notes <- character()
+      one <- tryCatch(withCallingHandlers({
+        raw <- .egcar_solve_one(fo$prep, penalty, lambda[[j]], control, e,
+                               init = previous, cv = TRUE, history = FALSE)
+        loading <- .egcar_loading(fo$prep, raw, as.integer(rank), control, e, FALSE)
+        score <- if (isTRUE(loading$valid)) validation_score(loading$L, fo$validation) else -Inf
+        list(score = score, converged = raw$converged, iterations = raw$iterations,
+             state = egcar_warm_state(raw, penalty == "l21"),
+             error = if (!isTRUE(loading$valid)) loading$reason else
+               if (!is.finite(score)) "Nonfinite common validation score." else NA_character_)
+      }, warning = function(w) {
+        notes <<- unique(c(notes, conditionMessage(w)))
+        invokeRestart("muffleWarning")
+      }), error = function(err) {
+        list(score = -Inf, converged = FALSE, iterations = NA_integer_,
+             state = NULL, error = conditionMessage(err))
+      })
+      if (!is.null(one$state)) previous <- one$state
+      result[[j]] <- data.frame(candidate = j, lambda = lambda[[j]], fold = f,
+        n_train = fo$prep$n, score = one$score, loss = -one$score,
+        converged = one$converged, iterations = one$iterations,
+        elapsed = proc.time()[[3L]] - start, error_message = one$error,
+        warning_message = if (length(notes)) paste(notes, collapse = " | ") else NA_character_)
+    }
+    do.call(rbind, result)
+  }
 }

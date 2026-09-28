@@ -31,7 +31,7 @@ test_that("the SGCA initializer is bundled with all its required helpers", {
 
 test_that("a tiny full experiment uses the configured methods and outputs", {
   cfg <- egcar_experiment_config(p_list = c(3L, 3L, 3L), n_grid = 18L, rank_grid = 1L,
-    active_per_view = 2L, n_folds = 2L,
+    active_per_view = 2L, n_folds = 2L, save_cv_fold_results = TRUE,
     rho_e_cv_grid = c(0.001, 0.01), lambda_g_cv_grid = c(0.001, 0.01),
     max_iter_cv = 10L, max_iter_final = 20L, oracle1_max_iter = 20L,
     run_external_benchmarks = FALSE, make_plots = FALSE, make_loading_plots = FALSE)

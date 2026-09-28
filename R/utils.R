@@ -19,6 +19,12 @@
     stop(name, " must be TRUE or FALSE.", call. = FALSE)
 }
 
+.egcar_optional_limit <- function(x, name, integer = FALSE) {
+  if (is.numeric(x) && length(x) == 1L && !is.na(x) && identical(as.double(x), Inf))
+    return(invisible(x))
+  .egcar_scalar(x, name, if (integer) 1 else 0, strict = !integer, integer = integer)
+}
+
 .egcar_grid <- function(x, name, positive = FALSE) {
   if (!is.numeric(x) || !length(x) || any(!is.finite(x)) ||
       any(if (positive) x <= 0 else x < 0))
@@ -57,17 +63,54 @@
   force(code)
 }
 
+.egcar_worker_plan_is_multicore <- function() {
+  # future::multicore forks the current R process, so each worker shares the
+  # parent's already-computed, read-only data (prepared covariance blocks,
+  # cached eigenbases, etc.) via copy-on-write -- nothing is duplicated in
+  # physical memory unless a worker actually writes to it. future::multisession
+  # instead spawns fully independent R sessions with no shared memory at all,
+  # so every worker must hold its own complete copy of whatever it touches.
+  # At large p (many GB of working set per worker) this is the difference
+  # between ~1x and ~workers-x peak memory. multicore requires OS-level
+  # forking (Unix-like only, and not always available even there, e.g. some
+  # restricted interactive front-ends), so this checks support rather than
+  # just assuming it, and multisession remains the safe, portable fallback
+  # everywhere it isn't. Set EGCAR_MULTICORE=0 to force multisession even
+  # where multicore would otherwise be used.
+  if (identical(Sys.getenv("EGCAR_MULTICORE", "1"), "0")) return(FALSE)
+  .Platform$OS.type == "unix" &&
+    requireNamespace("parallelly", quietly = TRUE) &&
+    isTRUE(tryCatch(parallelly::supportsMulticore(), error = function(e) FALSE))
+}
+
 .egcar_with_workers <- function(workers, code) {
   if (workers > 1L) {
     if (!requireNamespace("future", quietly = TRUE) ||
         !requireNamespace("future.apply", quietly = TRUE))
       stop("workers > 1 requires both future and future.apply.", call. = FALSE)
+    use_multicore <- .egcar_worker_plan_is_multicore()
+    plan_class <- if (use_multicore) "multicore" else "multisession"
     old <- future::plan()
-    matching <- inherits(old, "multisession") &&
+    matching <- inherits(old, plan_class) &&
       as.integer(future::nbrOfWorkers()) == as.integer(workers)
     if (!matching) {
       on.exit(future::plan(old), add = TRUE)
-      future::plan(future::multisession, workers = as.integer(workers))
+      # future::plan() substitute()s its strategy argument by default, so it
+      # must be a plain value/symbol, never an inline if/else expression --
+      # passing the conditional directly here (as the 0.2.8 patch originally
+      # did) made plan() capture the literal call `if(use_multicore,
+      # future::multicore, future::multisession)` instead of picking one of
+      # the two functions first. Its internal tweak() then tried to treat
+      # the primitive `if` itself as the strategy and inspect its
+      # environment -- primitives have none (environment(`if`) is NULL) --
+      # crashing with "Error in ls(envir = env, ...) : invalid 'envir'
+      # argument" inside tweak.function, unconditionally, every time,
+      # regardless of e/dispatcher/globals (confirmed via a full traceback:
+      # the crash is in plan() setup, before any CV-fold work is reached).
+      # Evaluating the choice into a plain variable first, and passing that
+      # to plan(), gives it a simple symbol to substitute() instead.
+      strategy_fn <- if (use_multicore) future::multicore else future::multisession
+      future::plan(strategy_fn, workers = as.integer(workers))
     }
   }
   force(code)
@@ -107,7 +150,9 @@
 # nested Rcpp output in which an arma::mat lost only its dim attribute. The
 # dimensions are not guessed: each edge has a unique known p_k x p_l shape.
 .egcar_normalize_solver_state <- function(state, context, group) {
-  fields <- if (group) c("C", "Gk", "Gl", "Vk", "Vl") else c("C", "Z", "H")
+  fields <- if (group) {
+    if (!is.null(state[["a"]])) c("C", "Hk", "Hl") else c("C", "Gk", "Gl", "Vk", "Vl")
+  } else c("C", "Z", "H")
   if (!is.list(state)) return(state)
   count <- length(context$edge_k)
   for (nm in intersect(fields, names(state))) {
@@ -128,7 +173,9 @@
 
 # Validate the native/optimized solver boundary before loading extraction.
 .egcar_check_solver_state <- function(state, context, group, backend) {
-  fields <- if (group) c("C", "Gk", "Gl", "Vk", "Vl") else c("C", "Z", "H")
+  fields <- if (group) {
+    if (!is.null(state[["a"]])) c("C", "Hk", "Hl") else c("C", "Gk", "Gl", "Vk", "Vl")
+  } else c("C", "Z", "H")
   hint <- if (identical(backend, "cpp")) paste0(
     " Reinstall the patched egcar source package and restart R, including CV workers.") else ""
   fail <- function(message) stop("EGCAR ", backend, " matrix interface: ", message,
@@ -137,6 +184,15 @@
       !all(fields %in% names(state)))
     fail("the solver did not return the required named state lists.")
   count <- length(context$edge_k)
+  if (group && !is.null(state[["a"]])) {
+    if (!is.list(state$a) || length(state$a) != length(context$p_list))
+      fail("invalid group multiplier list a.")
+    for (k in seq_along(context$p_list))
+      if (!is.numeric(state$a[[k]]) || !is.null(dim(state$a[[k]])) ||
+          length(state$a[[k]]) != context$p_list[[k]] ||
+          any(!is.finite(state$a[[k]])) || any(state$a[[k]] < 0 | state$a[[k]] > 1))
+        fail("invalid group row multipliers.")
+  }
   for (nm in fields) {
     blocks <- state[[nm]]
     if (!is.list(blocks) || length(blocks) != count)
