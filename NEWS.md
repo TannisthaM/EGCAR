@@ -1,3 +1,28 @@
+# egcar 0.2.16
+
+- Replace the SGCA backtracking variant by paper Algorithm 1 with fixed steps,
+  correct gradient factor, initial/final metric normalization and row thresholding.
+- Use trace-equality Fantope projection and leading algebraic eigenvectors.
+- Set fixed 15000-step TGD, lambda 0.01, eta 0.001, zero metric ridge, and
+  fold-specific rho=0.5*sqrt(log(p)/n_train). Enforce the initializer cap of 1000.
+- Default SGCA CV to the paper score and sparsity grid; keep common scoring optional.
+- Separate benchmark completion from numerical convergence; retain compact
+  per-stage diagnostics and actual rho in results and fold tables.
+- Update cluster launchers so earlier explicit settings do not override these defaults.
+- Preserve 0.2.15 EGCAR timing through loading extraction and memory improvements.
+
+# egcar 0.2.15
+
+* Include loading extraction in public and experiment EGCAR fit times; retain
+  solver/loading components and avoid double counting in CV totals.
+* Stream group norms and operator errors from edge blocks in native code.
+* Reuse bounded support factor caches across direct regularization paths.
+* Reuse projected scores for scoring; reduce simulation truth eigenproblems.
+* Require converged EGCAR/SGCA CV folds by default (explicit legacy opt-out).
+* Exclude failed rows from successful-fit summaries and save completion counts.
+* Update tier launchers to require 0.2.15 and filter unsuccessful plot rows.
+* Add numerical equivalence, timer-boundary, and eligibility regression checks.
+
 # egcar 0.2.14
 
 - Calibrate one fixed L21 rate multiplier using 36 independent pilot scenarios

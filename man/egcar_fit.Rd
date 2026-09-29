@@ -24,7 +24,9 @@ egcar_path(x, rank = 1L, penalty = c("l11", "l21"),
 \item{init}{An optional same-family fitted object or dimension-compatible ADMM-state list. Used as a warm start.}
 \item{multiplier}{Nonnegative multiplier applied to the selected rate scale. NULL uses the frozen pilot-calibrated L21 default (0.05), or 1 for L11. Explicit numeric values retain their original meaning.}
 }
-\details{For each unordered view pair the smooth loss is
+\details{
+Since 0.2.15, \code{fit_time} includes optimization through loading extraction; \code{solver_time} and \code{loading_time} are components. \code{wall_time} includes preparation performed by the current public fit call. Paths reuse one bounded support-factor cache across coefficients; every fit is still retained.
+For each unordered view pair the smooth loss is
 \deqn{\tfrac12\mathrm{tr}(C_{kl}^{T}S_{kk}C_{kl}S_{ll})-\langle S_{kl},C_{kl}\rangle.}
 The entrywise version adds \eqn{\lambda\sum_{k<l}\|C_{kl}\|_{1,1}}.
 The group version adds \eqn{\lambda\sum_k\|M_k(C)\|_{2,1}}, where each row

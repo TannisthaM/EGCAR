@@ -39,14 +39,16 @@ print.egcar_fit <- function(x, ...) {
 #' @param x A fitted or prepared object of the corresponding class.
 #' @param ... Further arguments reserved for S3 compatibility.
 print.egcar_cv <- function(x, ...) {
-  cat(x$method, "common-loss CV; rank =", x$rank, "; status:", x$status, "\n")
+  score_name <- if (identical(x$method, "SGCA")) x$benchmarks$sgca_cv_score %||% "common_loss" else "common_loss"
+  cat(x$method, score_name, "CV; rank =", x$rank, "; status:", x$status, "\n")
   if (!is.null(x$best)) {
     cols <- intersect(c("lambda", "sgca_k", "sgca_rho", "sgca_lambda", "rgcca_tau",
                         "sgcca_sparsity", "multicca_l1_bound", "mean_loss"), names(x$best))
     print(x$best[, cols, drop = FALSE], row.names = FALSE)
   } else cat(x$error, "\n")
   cat("Tuning:", format(x$tuning_time, digits = 4), "s; final refit:",
-      format(x$fit_time + x$loading_time, digits = 4), "s\n")
+      format(x$fit_time + if (is.null(x$timing_version)) (x$loading_time %||% 0) else 0,
+             digits = 4), "s\n")
   invisible(x)
 }
 

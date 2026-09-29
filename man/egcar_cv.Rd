@@ -21,8 +21,9 @@ egcar_cv(x, rank = 1L, penalty = c("l11", "l21"),
 \item{control}{An \code{egcar_control} object or named argument list.}
 }
 \details{Candidates are visited in descending coefficient order within each fold
-and use same-family warm starts. Finite but nonconverged fits remain eligible,
-as in the supplied benchmark; convergence flags and iteration counts are recorded.
+and use same-family warm starts. By default every fold must converge and have
+a finite requested-rank score. Set \code{cv_require_convergence=FALSE} in
+\code{egcar_control} only to reproduce the earlier finite-score eligibility rule.
 Every fold must have a finite score for a candidate to be eligible. Exact score
 ties favor stronger regularization. Zero is excluded from the CV grid for both EGCAR penalties.
 
@@ -35,8 +36,10 @@ coefficient of one. Diagnostics are in \code{cv_fold_table}.
 
 Preparation is reported separately and can be amortized over methods. Tuning
 time includes fold fits and scoring, and may include worker startup. EGCAR's
-final \code{fit_time} measures ADMM, \code{loading_time} its final loading
-extraction, and \code{total_time} their sum plus tuning. The time of loading
+final \code{fit_time} includes optimization through loading extraction.
+\code{solver_time} and \code{loading_time} are components of that interval;
+\code{total_time = tuning_time + fit_time} does not add loading twice.
+\code{wall_time} measures the actual current public call, including preparation when performed. The time of loading
 or compiling the installed package is not included.}
 \value{An \code{egcar_cv} object containing \code{fit}, \code{L}, \code{best}, \code{lambda}, candidate and fold tables, supplied fold labels, status, controls and timings.}
 \examples{

@@ -1,12 +1,12 @@
-test_that("SGCA defaults use one six-hour budget with optional iteration caps", {
+test_that("SGCA defaults use one six-hour budget and paper iteration defaults", {
   b <- benchmark_control()
   expect_equal(b$sgca_time_limit, 21600)
-  expect_identical(b$sgca_init_max_iter, Inf)
-  expect_identical(b$sgca_tgd_max_iter, Inf)
+  expect_identical(b$sgca_init_max_iter, 1000L)
+  expect_identical(b$sgca_tgd_max_iter, 15000L)
   c <- egcar_experiment_config()
   expect_equal(c$sgca_time_limit, 21600)
-  expect_identical(c$sgca_max_iter_init, Inf)
-  expect_identical(c$sgca_max_iter_tgd, Inf)
+  expect_identical(c$sgca_max_iter_init, 1000L)
+  expect_identical(c$sgca_max_iter_tgd, 15000L)
   for (value in list(0, -1, NA_real_, NaN, c(1, 2)))
     expect_error(benchmark_control(sgca_time_limit = value), "sgca_time_limit")
   expect_error(benchmark_control(sgca_tgd_max_iter = 1.5), "sgca_tgd_max_iter")
@@ -18,10 +18,10 @@ test_that("SGCA defaults use one six-hour budget with optional iteration caps", 
 
 test_that("unlimited TGD stops on its numerical criterion", {
   out <- egcar:::sgca_tgd_penalized(diag(c(3, 2, 1)), diag(3),
-    matrix(c(1, 0, 0), 3, 1), rank = 1, k = 3, lambda = 1, max_iter = Inf)
+    matrix(c(1, 0, 0), 3, 1), rank = 1, k = 3, lambda = 1, max_iter = Inf, stopping = "absolute_change")
   expect_true(out$converged)
   expect_equal(out$iterations, 1)
-  expect_equal(out$relative_gradient_mapping, 0)
+  expect_equal(out$absolute_change, 0)
   expect_equal(abs(out$L[, 1]), c(1, 0, 0))
 })
 

@@ -1,8 +1,8 @@
 # Required initializer dependency closure, bundled from:
 # https://github.com/TannisthaM/SGCA/blob/main/R/gao_cv_functions.R
-# Inspected 2026-09-10. Function bodies below are retained from that source.
+# Inspected 2026-09-10; adapted in 0.2.16 to enforce the paper's trace equality.
 # These four internal functions do not generate folds or perform CV or TGD.
-# The experiment's common-loss CV and penalized TGD remain authoritative.
+# The paper-based SGCA CV and Algorithm 1 are in alt_SGCA.R.
 # Copyright and permission notice for this bundled code:
 # MIT License
 # 
@@ -30,7 +30,7 @@ Soft <- function(a,b){
 }
 
 updatePi <- function(B,sqB,A,H,Gamma,nu,rho,Pi,tau){
-  C <- Pi + 1/tau*A - nu/tau*B%*%Pi%*%B + nu/tau*sqB%*%(H-Gamma)%*%sqB
+  C <- Pi + 1/tau*A - nu/tau*B%*%Pi%*%B + nu/tau*sqB%*%(H-Gamma/nu)%*%sqB
   D <- rho/tau
   Soft(C,D)
 }
@@ -40,22 +40,20 @@ updateH <- function(sqB,Gamma,nu,Pi,K){
   ev <- eigen(temp, symmetric = TRUE)
   d <- ev$values
 
-  if(sum(pmin(1,pmax(d,0)))<=K){
-    dfinal <- pmin(1,pmax(d,0))
-    return(ev$vectors%*%diag(dfinal)%*%t(ev$vectors))
+  # Projection onto {0 <= H <= I, trace(H) = K}, equation (14).
+  # The authors' R helper instead accepts trace <= K when clipping suffices.
+  if (K < 0 || K > length(d)) stop("Invalid Fantope trace.")
+  if (K == 0) return(matrix(0, length(d), length(d)))
+  if (K == length(d)) return(diag(length(d)))
+  lower <- min(d) - 1
+  upper <- max(d)
+  for (j in seq_len(80L)) {
+    theta <- (lower + upper) / 2
+    clipped <- pmin(1, pmax(d - theta, 0))
+    if (sum(clipped) > K) lower <- theta else upper <- theta
+    if (abs(sum(clipped) - K) <= 1e-12 * max(1, K)) break
   }
-  fr <- function(x) sum(pmin(1,pmax(d-x,0)))
-  knots <- unique(c((d-1), d))
-  knots <- sort(knots, decreasing=TRUE)
-  temp2 <- which(sapply(knots, fr) <= K)
-  lentemp <- tail(temp2, 1)
-  a <- knots[lentemp]
-  b <- knots[lentemp+1]
-  fa <- sum(pmin(pmax(d-a,0),1))
-  fb <- sum(pmin(pmax(d-b,0),1))
-  theta <- a + (b-a) * (K-fa)/(fb-fa)
-  dfinal <- pmin(1,pmax(d-theta,0))
-  ev$vectors%*%diag(dfinal)%*%t(ev$vectors)
+  tcrossprod(sweep(ev$vectors, 2L, clipped, "*"), ev$vectors)
 }
 sgca_init_fixed <- function(A,B,rho,K,nu=1,epsilon=5e-3,maxiter=1000,trace=FALSE){
   A <- (A + t(A))/2

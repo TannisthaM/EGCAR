@@ -35,7 +35,7 @@ The last two fields apply to L21-rate. Unavailable subspace errors remain NA.
 SGCA, RGCCA, SGCCA, MultiCCA, Oracle1-population, and Oracle2-support are retained.
 SGCA initialization is bundled. The configuration field \code{sgca_time_limit}
 sets one elapsed-time budget in seconds for each SGCA CV-and-refit run; its
-default is 21600 (six hours). The SGCA iteration caps default to Inf. RGCCA and PMA are needed for the full comparison;
+default is 21600 (six hours). SGCA defaults to 1000 initializer iterations at tolerance 0.005 and 15000 fixed TGD updates; see comparison_cv. RGCCA and PMA are needed for the full comparison;
 ggplot2 is needed for plots. Future and future.apply enable parallel CV.
 The population oracle retains the original zero-penalty consensus algorithm;
 neither its data nor its coefficients depend on sample size. The support

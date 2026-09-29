@@ -562,3 +562,58 @@ Rcpp::NumericVector egcar_native_block_product(Rcpp::List C,
   }
   return out;
 }
+
+// Streaming endpoint reductions: no squared edge-sized temporary matrices.
+// [[Rcpp::export]]
+Rcpp::List egcar_native_group_norms(Rcpp::List left, Rcpp::List right,
+    Rcpp::IntegerVector edge_k, Rcpp::IntegerVector edge_l,
+    Rcpp::IntegerVector sizes) {
+  if(left.size()!=right.size() || left.size()!=edge_k.size() ||
+     left.size()!=edge_l.size()) Rcpp::stop("Invalid norm edge layout.");
+  Rcpp::List out(sizes.size());
+  for(int k=0;k<sizes.size();++k) {
+    if(sizes[k]<1) Rcpp::stop("Invalid view dimension.");
+    out[k]=Rcpp::NumericVector(sizes[k]);
+  }
+  for(int e=0;e<left.size();++e) {
+    Rcpp::checkUserInterrupt();
+    int k=edge_k[e]-1,l=edge_l[e]-1;
+    if(k<0 || l<=k || l>=sizes.size()) Rcpp::stop("Invalid norm edge.");
+    Rcpp::NumericMatrix A=Rcpp::as<Rcpp::NumericMatrix>(left[e]);
+    Rcpp::NumericMatrix B=Rcpp::as<Rcpp::NumericMatrix>(right[e]);
+    if(A.nrow()!=sizes[k] || A.ncol()!=sizes[l] ||
+       B.nrow()!=sizes[k] || B.ncol()!=sizes[l]) Rcpp::stop("Invalid norm block dimensions.");
+    Rcpp::NumericVector nk=out[k],nl=out[l];
+    for(int j=0;j<A.ncol();++j) {
+      double col=0;
+      for(int i=0;i<A.nrow();++i) {
+        double a=A(i,j),b=B(i,j); nk[i]+=a*a; col+=b*b;
+      }
+      nl[j]+=col;
+    }
+  }
+  for(int k=0;k<out.size();++k) {
+    Rcpp::NumericVector v=out[k];
+    for(R_xlen_t i=0;i<v.size();++i) v[i]=std::sqrt(v[i]);
+  }
+  return out;
+}
+
+// Full symmetric-operator errors from unordered edges; both halves count.
+// [[Rcpp::export]]
+Rcpp::NumericVector egcar_native_edge_errors(Rcpp::List C, Rcpp::List truth) {
+  if(C.size()!=truth.size()) Rcpp::stop("Mismatched truth edge count.");
+  double error=0,reference=0; bool zero=true;
+  for(int e=0;e<C.size();++e) {
+    Rcpp::checkUserInterrupt();
+    Rcpp::NumericMatrix A=Rcpp::as<Rcpp::NumericMatrix>(C[e]);
+    Rcpp::NumericMatrix B=Rcpp::as<Rcpp::NumericMatrix>(truth[e]);
+    if(A.nrow()!=B.nrow() || A.ncol()!=B.ncol()) Rcpp::stop("Mismatched truth edge dimensions.");
+    for(R_xlen_t i=0;i<A.size();++i) {
+      double d=A[i]-B[i]; error+=d*d; reference+=B[i]*B[i];
+      if(A[i]!=0) zero=false;
+    }
+  }
+  return Rcpp::NumericVector::create(Rcpp::_["error"]=std::sqrt(2*error),
+    Rcpp::_["reference"]=std::sqrt(2*reference),Rcpp::_["zero"]=zero?1.0:0.0);
+}

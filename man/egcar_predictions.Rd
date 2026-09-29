@@ -14,5 +14,5 @@ egcar_score(object, newdata, ridge = 1e-8)
 \item{newdata}{Complete matched views with training feature names and column order. Named views may be supplied in a different view order and are matched by name.}
 \item{ridge}{Relative score-normalization ridge, default 1e-8.}
 }
-\details{Use \code{coef(object)} for the stacked loading matrix or \code{coef(object, by_view = TRUE)} for its view blocks. Use \code{predict(object, newdata, type = "views")} for a list of per-view component scores, or \code{type = "sum"} to sum them. Prediction does not impute an absent view. \code{egcar_score} reports the positive score; CV minimizes its negative.}
+\details{Use \code{coef(object)} for the stacked loading matrix or \code{coef(object, by_view = TRUE)} for its view blocks. Use \code{predict(object, newdata, type = "views")} for a list of per-view component scores, or \code{type = "sum"} to sum them. Prediction does not impute an absent view. \code{egcar_score} reports the positive score; EGCAR CV minimizes its negative. SGCA paper CV uses a distinct covariance-trace score.}
 \value{A scalar validation score. The coefficient and prediction methods return matrices or lists of matrices.}

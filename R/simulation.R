@@ -133,12 +133,10 @@ make_population <- function(
   }
   Sigma <- symmetrize(Sigma)
 
-  Sigma0_half <- matrix_power_psd(Sigma0, 0.5)
-  Sigma0_inv_half <- matrix_power_psd(Sigma0, -0.5)
+  truth <- .egcar_population_truth(U, Sigma_kk, signal, rank)
+  Sigma0_half <- block_diag(truth$half)
   Cstar_full <- assemble_full_C(Cstar, p_list)
-  Rstar <- symmetrize(Sigma0_half %*% Cstar_full %*% Sigma0_half)
-  ee <- eigen(Rstar, symmetric = TRUE)
-  Lstar <- Sigma0_inv_half %*% ee$vectors[, seq_len(rank), drop = FALSE]
+  Lstar <- truth$L
 
   idx <- make_block_indices(p_list)
   active_global <- unlist(lapply(seq_len(K), function(k) idx[[k]][active_local[[k]]]))
@@ -160,10 +158,41 @@ make_population <- function(
     Cstar = Cstar,
     Cstar_full = Cstar_full,
     Lstar = Lstar,
-    eigenvalues = ee$values[seq_len(rank)],
+    eigenvalues = truth$values,
     active_local = active_local,
     active_global = active_global
   )
+}
+
+# Exact range reduction for this simulator's rank-r cross-view model.
+# Z_k = S_kk^(1/2) U_k = Q_k R_k. The whitened truth acts only on
+# blockdiag(Q_k); its reduced off-diagonal blocks are signal * R_k R_l'.
+.egcar_population_truth <- function(U, covariance, signal, rank) {
+  K <- length(U)
+  factors <- lapply(seq_len(K), function(k) {
+    ee <- eigen(symmetrize(covariance[[k]]), symmetric = TRUE)
+    d <- pmax(ee$values, 1e-10)
+    half <- tcrossprod(sweep(ee$vectors, 2L, sqrt(d), "*"), ee$vectors)
+    z <- svd(half %*% U[[k]], nu = rank, nv = rank)
+    list(half = half, Q = z$u[, seq_len(rank), drop = FALSE],
+      R = sweep(t(z$v[, seq_len(rank), drop = FALSE]), 1L, z$d[seq_len(rank)], "*"),
+      vectors = ee$vectors, inverse = 1 / sqrt(d))
+  })
+  small <- matrix(0, K * rank, K * rank)
+  idx <- make_block_indices(rep.int(rank, K))
+  for (k in seq_len(K - 1L)) for (l in seq.int(k + 1L, K)) {
+    block <- signal * tcrossprod(factors[[k]]$R, factors[[l]]$R)
+    small[idx[[k]], idx[[l]]] <- block
+    small[idx[[l]], idx[[k]]] <- t(block)
+  }
+  ev <- eigen(symmetrize(small), symmetric = TRUE)
+  L <- lapply(seq_len(K), function(k) {
+    f <- factors[[k]]
+    basis <- f$Q %*% ev$vectors[idx[[k]], seq_len(rank), drop = FALSE]
+    f$vectors %*% (f$inverse * crossprod(f$vectors, basis))
+  })
+  list(L = do.call(rbind, L), values = ev$values[seq_len(rank)],
+       half = lapply(factors, `[[`, "half"))
 }
 
 rmvn_psd <- function(n, Sigma) {

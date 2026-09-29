@@ -7,7 +7,7 @@ run_package_experiments <- function(
     output_dir = "egcar_package_outputs", workers = 1L, n_reps = 1L,
     smoke_test = identical(Sys.getenv("EGCAR_SMOKE_TEST", "0"), "1")) {
   if (!requireNamespace("egcar", quietly = TRUE)) stop("Install egcar first.")
-  if (utils::packageVersion("egcar") < "0.2.0") stop("This runner requires egcar >= 0.2.0.")
+  if (utils::packageVersion("egcar") < "0.2.16") stop("This runner requires egcar >= 0.2.16.")
 
   # These are the original full-study defaults, NOT a tiny illustrative example.
   cfg <- egcar::egcar_experiment_config(
@@ -30,7 +30,7 @@ run_package_experiments <- function(
   # cfg$max_iter_cv <- 1000L
   # cfg$max_iter_final <- 2000L
   # cfg$loading_plot_n <- c(100L, 10000L)
-  # cfg$sgca_k_grid <- sort(unique(c(5L, 10L, 15L, 20L, 30L, sum(cfg$p_list))))
+  # cfg$sgca_k_grid <- seq.int(5L, 100L, 5L)
 
   egcar::run_egcar_experiments(output_dir = output_dir, workers = workers,
     n_reps = n_reps, config = cfg, backend = "cpp", smoke_test = smoke_test)

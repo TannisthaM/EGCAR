@@ -67,10 +67,10 @@ sgca_common_cv <- function(
     out$time_limit_scope <- "SGCA CV and full-sample refit"
     return(out)
   }
-  keys <- c("SGCA_ETA", "SGCA_RIDGE_B", "SGCA_INIT_TOL", "SGCA_MAX_ITER_INIT",
+  keys <- c("SGCA_STOPPING", "SGCA_CV_SCORE", "SGCA_CV_REQUIRE_CONVERGENCE", "SGCA_ETA", "SGCA_RIDGE_B", "SGCA_INIT_TOL", "SGCA_MAX_ITER_INIT",
     "SGCA_TGD_TOL", "SGCA_MAX_ITER_TGD", "FAST_SGCA_INITIALIZER",
     "COVARIANCE_RIDGE", "ALIGN_EXTERNAL_BLOCK_SIGNS", "CV_WORKERS",
-    "PARALLEL_CV", "BLAS_THREADS")
+    "PARALLEL_CV", "BLAS_THREADS", "CV_REQUIRE_CONVERGENCE")
   settings <- mget(keys, envir = environment(), inherits = TRUE)
   settings$RETAIN_CV_FOLD_TABLES <- get0("RETAIN_CV_FOLD_TABLES", inherits = TRUE, ifnotfound = TRUE)
   settings$RETAIN_BENCHMARK_FITS <- get0("RETAIN_BENCHMARK_FITS", inherits = TRUE, ifnotfound = TRUE)
@@ -108,7 +108,8 @@ sgca_common_cv <- function(
     out <- list(L = NULL, loading = NULL, fit_full = NULL, best = NULL,
       cv_table = data.frame(), cv_fold_table = data.frame(),
       fit_time = run$elapsed - tuning, tuning_time = tuning, time = run$elapsed,
-      status = "time_limit", converged = FALSE, iterations = NA_integer_,
+      status = "time_limit", converged = FALSE, completed = FALSE,
+      diagnostics = list(), iterations = NA_integer_,
       timeout_phase = phase$phase,
       error = sprintf(paste0("SGCA did not converge in real time: the complete CV and refit ",
         "did not finish within the %.6g-hour wall-clock budget (%.6g seconds)."),

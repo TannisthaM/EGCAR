@@ -27,6 +27,9 @@
 #' Paths visit coefficients from strongest to weakest, return them in input order,
 #' and reuse primal/scaled-dual states with the configured initial augmentation
 #' parameter, matching the supplied script's convention.
+#' Since 0.2.15, fit_time includes optimization through loading extraction.
+#' solver_time and loading_time are components, while wall_time includes current-call preparation.
+#' Paths share a bounded loading-factor cache across coefficients.
 #' @return \code{egcar_fit} and \code{egcar_rate} return \code{egcar_fit} objects containing stacked loadings \code{L}, view loadings, edge blocks \code{C}, the raw solver state (compressed Hk/Hl/a for L21 by default; legacy G/V with compact_state=FALSE), residuals, convergence status, selected rows, training means, controls and separated timings. A path returns the coefficient vector and corresponding fitted objects.
 #' @rdname egcar_fit
 #' @examples
@@ -36,6 +39,7 @@
 #' @export
 egcar_fit <- function(x, rank = 1L, penalty = c("l11", "l21"), lambda = 0.01,
                       control = egcar_control(), init = NULL) {
+  call_start <- proc.time()[[3L]]
   cl <- match.call()
   penalty <- match.arg(penalty)
   .egcar_scalar(rank, "rank", 1, integer = TRUE)
@@ -44,24 +48,36 @@ egcar_fit <- function(x, rank = 1L, penalty = c("l11", "l21"), lambda = 0.01,
   .egcar_with_seed(NULL, .egcar_with_threads(control$blas_threads, {
     prepared <- egcar_prepare(x)
     if (rank > prepared$p) stop("rank exceeds the total number of variables.")
-    e <- .egcar_engine(control)
-    prep <- prepared$prep
-    prep$loading_factor_cache <- new.env(parent = emptyenv())
-    t0 <- proc.time()[[3L]]
-    raw <- .egcar_solve_one(prep, penalty, lambda, control, e, init)
-    fit_time <- proc.time()[[3L]] - t0
-    t0 <- proc.time()[[3L]]
-    loading <- .egcar_loading(prep, raw, as.integer(rank), control, e)
-    loading_time <- proc.time()[[3L]] - t0
-    .egcar_fit_object(raw, loading, prepared, as.integer(rank), penalty, lambda,
-                      control, fit_time, loading_time, cl)
+    out <- .egcar_fit_prepared(prepared, rank, penalty, lambda, control, init, cl)
+    out$wall_time <- proc.time()[[3L]] - call_start
+    out
   }))
+}
+
+# Fit one prepared problem, optionally sharing a per-path engine and factor cache.
+.egcar_fit_prepared <- function(prepared, rank, penalty, lambda, control,
+                                init = NULL, call = NULL, e = NULL, cache = NULL) {
+  start <- proc.time()[[3L]]
+  if (is.null(e)) e <- .egcar_engine(control)
+  prep <- prepared$prep
+  prep$loading_factor_cache <- if (is.null(cache)) new.env(parent = emptyenv()) else cache
+  t0 <- proc.time()[[3L]]
+  raw <- .egcar_solve_one(prep, penalty, lambda, control, e, init)
+  solver_time <- proc.time()[[3L]] - t0
+  t0 <- proc.time()[[3L]]
+  loading <- .egcar_loading(prep, raw, as.integer(rank), control, e)
+  loading_time <- proc.time()[[3L]] - t0
+  out <- .egcar_fit_object(raw, loading, prepared, as.integer(rank), penalty, lambda,
+                           control, solver_time, loading_time, call)
+  out$fit_time <- out$total_time <- proc.time()[[3L]] - start
+  out
 }
 
 #' @rdname egcar_fit
 #' @export
 egcar_rate <- function(x, rank = 1L, penalty = c("l11", "l21"), multiplier = NULL,
                        control = egcar_control()) {
+  call_start <- proc.time()[[3L]]
   penalty <- match.arg(penalty)
   default_multiplier <- is.null(multiplier)
   if (default_multiplier) multiplier <- .egcar_default_rate_multiplier(penalty)
@@ -79,6 +95,9 @@ egcar_rate <- function(x, rank = 1L, penalty = c("l11", "l21"), multiplier = NUL
   out$rate_zero_certified <- if (penalty == "l21") lambda > out$rate_zero_bound else NA
   out$rate_diagnostic_time <- proc.time()[[3L]] - diagnostic_start
   out$rate_rule <- if (penalty == "l11") "sqrt(log(p)/n)" else "sqrt((d_max+log(p))/n)"
+  out$fit_time <- out$fit_time + out$rate_diagnostic_time
+  out$total_time <- out$fit_time
+  out$wall_time <- proc.time()[[3L]] - call_start
   out$call <- match.call()
   out
 }
@@ -89,13 +108,22 @@ egcar_path <- function(x, rank = 1L, penalty = c("l11", "l21"),
                        lambda = 10^seq(-5, 4), control = egcar_control()) {
   penalty <- match.arg(penalty)
   lambda <- .egcar_grid(lambda, "lambda")
+  .egcar_scalar(rank, "rank", 1, integer = TRUE)
+  control <- .egcar_as_control(control)
   prepared <- egcar_prepare(x)
-  fits <- vector("list", length(lambda))
-  previous <- NULL
-  for (i in order(lambda, decreasing = TRUE)) {
-    fits[[i]] <- egcar_fit(prepared, rank, penalty, lambda[[i]], control, init = previous)
-    previous <- fits[[i]]
-  }
+  if (rank > prepared$p) stop("rank exceeds the total number of variables.")
+  e <- .egcar_engine(control)
+  cache <- new.env(parent = emptyenv())
+  fits <- .egcar_with_seed(NULL, .egcar_with_threads(control$blas_threads, {
+    ans <- vector("list", length(lambda))
+    previous <- NULL
+    for (i in order(lambda, decreasing = TRUE)) {
+      ans[[i]] <- .egcar_fit_prepared(prepared, rank, penalty, lambda[[i]], control,
+                                     previous, match.call(), e, cache)
+      previous <- ans[[i]]
+    }
+    ans
+  }))
   names(fits) <- format(lambda, digits = 17)
   structure(list(lambda = lambda, fits = fits, penalty = penalty, rank = rank,
                  traversal = order(lambda, decreasing = TRUE)), class = "egcar_path")
@@ -114,8 +142,9 @@ egcar_path <- function(x, rank = 1L, penalty = c("l11", "l21"),
 #' @param workers Fold-level workers, capped at the number of folds. Values above one require future and future.apply. The previous future plan is restored.
 #' @param control An \code{egcar_control} object or named argument list.
 #' @details Candidates are visited in descending coefficient order within each fold
-#' and use same-family warm starts. Finite but nonconverged fits remain eligible,
-#' as in the supplied benchmark; convergence flags and iteration counts are recorded.
+#' and use same-family warm starts. By default every fold must converge and have
+#' a finite requested-rank score. Set \code{cv_require_convergence=FALSE} in
+#' \code{egcar_control} only to reproduce the earlier finite-score eligibility rule.
 #' Every fold must have a finite score for a candidate to be eligible. Exact score
 #' ties favor stronger regularization. Zero is not an admissible CV candidate for either EGCAR family.
 #'
@@ -128,8 +157,10 @@ egcar_path <- function(x, rank = 1L, penalty = c("l11", "l21"),
 #'
 #' Preparation is reported separately and can be amortized over methods. Tuning
 #' time includes fold fits and scoring, and may include worker startup. EGCAR's
-#' final \code{fit_time} measures ADMM, \code{loading_time} its final loading
-#' extraction, and \code{total_time} their sum plus tuning. The time of loading
+#' final \code{fit_time} includes optimization through loading extraction.
+#' \code{solver_time} and \code{loading_time} are components of that interval;
+#' \code{total_time = tuning_time + fit_time} does not add loading twice.
+#' \code{wall_time} measures the actual current public call, including preparation when performed. The time of loading
 #' or compiling the installed package is not included.
 #' @return An \code{egcar_cv} object containing \code{fit}, \code{L}, \code{best}, \code{lambda}, candidate and fold tables, supplied fold labels, status, controls and timings.
 #' @rdname egcar_cv
@@ -143,6 +174,7 @@ egcar_cv <- function(x, rank = 1L, penalty = c("l11", "l21"),
                      lambda = 10^seq(-5, 4), fold_id = NULL,
                      nfolds = 5L, seed = 1L, workers = 1L,
                      control = egcar_control()) {
+  call_start <- proc.time()[[3L]]
   cl <- match.call()
   penalty <- match.arg(penalty)
   lambda <- egcar_positive_cv_grid(lambda, "lambda")
@@ -161,7 +193,8 @@ egcar_cv <- function(x, rank = 1L, penalty = c("l11", "l21"),
       rows <- e$parallel_map_candidates(fold_inputs, fold_task)
       fold_table <- do.call(rbind, rows)
       grid <- data.frame(lambda = lambda, candidate = seq_along(lambda))
-      table <- summarize_loading_cv(grid, fold_table, data$nfolds)
+      table <- summarize_loading_cv(grid, fold_table, data$nfolds,
+                                    require_convergence = control$cv_require_convergence)
       valid <- which(is.finite(table$mean_loss))
       best_index <- if (length(valid)) {
         valid[order(table$mean_loss[valid], -table$lambda[valid])[[1L]]]
@@ -183,7 +216,7 @@ egcar_cv <- function(x, rank = 1L, penalty = c("l11", "l21"),
         out$fit_time <- 0; out$loading_time <- 0; out$total_time <- tuning_time
         out$status <- "no_valid_cv"; out$converged <- FALSE
         out$iterations <- NA_integer_
-        out$error <- "No candidate had a finite requested-rank score on every fold. Inspect cv_fold_table."
+        out$error <- "No candidate satisfied finite requested-rank scoring and the configured convergence requirement on every fold. Inspect cv_fold_table."
       } else {
         out$best <- table[best_index, , drop = FALSE]
         out$lambda <- table$lambda[[best_index]]
@@ -197,12 +230,15 @@ egcar_cv <- function(x, rank = 1L, penalty = c("l11", "l21"),
           out$iterations <- NA_integer_; out$error <- refit$error
         } else {
           out$fit <- refit; out$L <- refit$L; out$fit_time <- refit$fit_time
+          out$solver_time <- refit$solver_time
           out$loading_time <- refit$loading_time; out$status <- refit$status
           out$converged <- refit$converged; out$iterations <- refit$iterations
           out$error <- refit$error
         }
-        out$total_time <- tuning_time + out$fit_time + out$loading_time
+        out$total_time <- tuning_time + out$fit_time
       }
+      out$wall_time <- proc.time()[[3L]] - call_start
+      out$timing_version <- "0.2.15"
       class(out) <- "egcar_cv"
       out
     })))

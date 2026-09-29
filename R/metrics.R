@@ -6,7 +6,7 @@
 #' @param object An \code{egcar_fit} or \code{egcar_cv} object with a valid loading matrix.
 #' @param newdata Complete matched views with training feature names and column order. Named views may be supplied in a different view order and are matched by name.
 #' @param ridge Relative score-normalization ridge, default 1e-8.
-#' @details Use \code{coef(object)} for the stacked loading matrix or \code{coef(object, by_view = TRUE)} for its view blocks. Use \code{predict(object, newdata, type = "views")} for a list of per-view component scores, or \code{type = "sum"} to sum them. Prediction does not impute an absent view. \code{egcar_score} reports the positive score; CV minimizes its negative.
+#' @details Use \code{coef(object)} for the stacked loading matrix or \code{coef(object, by_view = TRUE)} for its view blocks. Use \code{predict(object, newdata, type = "views")} for a list of per-view component scores, or \code{type = "sum"} to sum them. Prediction does not impute an absent view. \code{egcar_score} reports the positive score; EGCAR CV minimizes its negative. SGCA paper CV uses a distinct covariance-trace score.
 #' @return A scalar validation score. The coefficient and prediction methods return matrices or lists of matrices.
 #' @rdname egcar_predictions
 #' @export
@@ -15,12 +15,8 @@ egcar_score <- function(object, newdata, ridge = 1e-8) {
     stop("object must be an egcar_fit or egcar_cv object.")
   .egcar_scalar(ridge, "ridge")
   # Also validates view/column order without estimating any validation means.
-  .egcar_predict(object, newdata, "views")
-  named <- !is.null(names(newdata))
-  newdata <- .egcar_views(newdata, min_rows = 1L)
-  if (named) newdata <- newdata[object$view_names]
-  val <- make_validation_covariance(center_views_at(newdata, object$means))
-  validation_score(object$L, val, ridge = ridge)
+  scores <- .egcar_predict(object, newdata, "views")
+  .egcar_score_components(scores, ridge)
 }
 
 #' @rdname egcar_simulation
@@ -44,6 +40,17 @@ validation_score <- function(L, validation, ridge = 1e-8) {
     Q <- symmetrize(crossprod(L, validation$Sigma0 %*% L))
     A <- crossprod(L, validation$Sigma %*% L)
   }
+  .egcar_score_gram(A, Q, ridge)
+}
+
+.egcar_score_components <- function(scores, ridge = 1e-8) {
+  n <- nrow(scores[[1L]])
+  Q <- symmetrize(Reduce(`+`, lapply(scores, crossprod)) / n)
+  A <- crossprod(Reduce(`+`, scores)) / n
+  .egcar_score_gram(A, Q, ridge)
+}
+
+.egcar_score_gram <- function(A, Q, ridge) {
   scale_diag <- mean(diag(Q))
   if (!is.finite(scale_diag) || scale_diag <= 0) return(-Inf)
   ev <- eigen(Q, symmetric = TRUE)
@@ -80,7 +87,11 @@ sine_theta_distance <- function(A, B, rank) {
 }
 
 support_metrics <- function(C_full, true_active, threshold = 1e-6) {
-  selected <- which(row_l2(C_full) > threshold)
+  .egcar_support_from_norms(row_l2(C_full), true_active, threshold)
+}
+
+.egcar_support_from_norms <- function(norms, true_active, threshold = 1e-6) {
+  selected <- which(norms > threshold)
   tp <- length(intersect(selected, true_active))
   fp <- length(setdiff(selected, true_active))
   fn <- length(setdiff(true_active, selected))

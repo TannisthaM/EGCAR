@@ -102,6 +102,12 @@ egcar_view_copies <- function(z, left, right) {
 }
 
 egcar_group_norms <- function(z, left, right = left) {
+  if (EGCAR_BACKEND == "cpp") {
+    # Preserve the compatibility shape checks without copying valid matrices.
+    left <- lapply(seq_along(z$edge_k), function(e) egcar_edge_matrix(z, left[[e]], e))
+    right <- lapply(seq_along(z$edge_k), function(e) egcar_edge_matrix(z, right[[e]], e))
+    return(egcar_native_group_norms(left, right, z$edge_k, z$edge_l, z$p_list))
+  }
   ans <- lapply(z$p_list, numeric)
   for (e in seq_along(z$edge_k)) {
     k <- z$edge_k[[e]]; l <- z$edge_l[[e]]

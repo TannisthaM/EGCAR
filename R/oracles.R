@@ -58,6 +58,7 @@ egcar_oracle_population <- function(population, rank = population$rank,
     out <- .egcar_fit_object(raw$raw_fit, raw$loading, prepared, as.integer(rank),
                              "oracle-population", 0, control, raw$time, 0, match.call())
     out$oracle_definition <- "Population covariances, original zero-penalty consensus splitting, both coefficients zero."
+    out$solver_time <- NA_real_ # The original oracle timer includes extraction.
     out
   }))
 }

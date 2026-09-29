@@ -66,7 +66,7 @@ dir.create(R_LIB_USER, recursive = TRUE, showWarnings = FALSE)
 
 CRAN_PACKAGES <- c("Rcpp", "RcppArmadillo", "RcppEigen", "RSpectra", "callr",
                    "future", "future.apply", "parallelly", "RGCCA", "PMA", "ggplot2", "remotes")
-EGCAR_MIN_VERSION <- "0.2.14"  # calibrated L21 rate and loading-status diagnostics
+EGCAR_MIN_VERSION <- "0.2.16"  # complete-fit timing and paper SGCA defaults
 
 install_required_packages <- function() {
   missing <- CRAN_PACKAGES[!vapply(
@@ -291,16 +291,18 @@ run_worker <- function(config_id, rep_id, outdir) {
     run_external_benchmarks = TRUE,
     stop_if_benchmark_packages_missing = TRUE,
 
-    sgca_k_grid = sort(unique(c(5L, 10L, 15L, 20L, 30L, 3L * p_per_block))),
-    sgca_rho_grid = c(0, 1e-3, 1e-2, 0.1, 0.5, 1),
-    sgca_lambda_grid = 10^seq(-5, 4),
+    sgca_k_grid = seq.int(5L, 100L, 5L),
+    sgca_rho_grid = NULL,
+    sgca_lambda_grid = 0.01,
     sgca_eta = 0.001,
-    sgca_ridge_b = 1e-6,
+    sgca_ridge_b = 0,
     sgca_init_tol = 5e-3,
-    sgca_max_iter_init = Inf,
+    sgca_max_iter_init = 1000L,
     sgca_tgd_tol = 1e-6,
-    sgca_max_iter_tgd = Inf,
+    sgca_max_iter_tgd = 15000L,
     sgca_time_limit = 6 * 60 * 60,
+    sgca_stopping = "fixed_iterations", sgca_cv_score = "paper",
+    sgca_cv_require_convergence = FALSE,
 
     rgcca_tau_grid = c(1e-6, 1e-3, 0.1, 0.25, 0.5, 0.75, 1),
     rgcca_scheme = "factorial",
@@ -372,7 +374,7 @@ run_worker <- function(config_id, rep_id, outdir) {
 
   atomic_csv(metrics, file.path(outdir, "metrics", paste0("metrics_", tag, ".csv")))
 
-  for (extra in c("cv_grid_results.csv", "selected_cv_parameters.csv")) {
+  for (extra in c("cv_grid_results.csv", "selected_cv_parameters.csv", "completion_counts.csv")) {
     src <- file.path(raw_dir, extra)
     if (file.exists(src)) {
       d <- utils::read.csv(src, stringsAsFactors = FALSE)
@@ -409,8 +411,13 @@ aggregate_results <- function(outdir) {
   groups <- split(M, interaction(M$panel, M$p_per_block, M$n, M$rank, M$signal, M$method, drop = TRUE))
   S <- do.call(rbind, lapply(groups, function(g) {
     row <- g[1L, c("panel", "p_per_block", "p_total", "n", "rank", "signal", "method"), drop = FALSE]
+    successful <- if ("status" %in% names(g)) !is.na(g$status) & g$status == "ok" else rep(TRUE,nrow(g))
+    row$recorded_runs <- nrow(g)
+    row$successful_runs <- sum(successful)
+    row$timeouts <- if ("status" %in% names(g)) sum(g$status == "time_limit",na.rm=TRUE) else NA_integer_
+    row$unsuccessful_runs <- sum(!successful)
     for (metric in numeric_metrics) {
-      x <- g[[metric]][is.finite(g[[metric]])]
+      x <- g[[metric]][successful & is.finite(g[[metric]])]
       row[[paste0(metric, "_mean")]] <- if (length(x)) mean(x) else NA_real_
       row[[paste0(metric, "_se")]] <- if (length(x) > 1L) stats::sd(x) / sqrt(length(x)) else
         if (length(x)) 0 else NA_real_
@@ -428,6 +435,7 @@ aggregate_results <- function(outdir) {
     make_plot_set <- function(results, omit_oracle1) {
       subdir <- if (omit_oracle1) "plots_without_oracle1" else "plots_all_methods"
       d <- if (omit_oracle1) results[results$method != "Oracle1-population", , drop = FALSE] else results
+      if ("status" %in% names(d)) d <- d[!is.na(d$status) & d$status == "ok", , drop = FALSE]
       output_dir <- file.path(outdir, subdir)
       dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
       spec <- data.frame(

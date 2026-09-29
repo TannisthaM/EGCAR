@@ -12,6 +12,9 @@
     rate_c_e = RATE_C_E,
     rate_c_g = RATE_C_G,
     n_folds = N_FOLDS,
+    cv_require_convergence = CV_REQUIRE_CONVERGENCE,
+    timing_version = "0.2.15",
+    timing_scope = "total_time = tuning + fit through loadings; shared preparation recorded separately",
     n_reps = N_REP,
     workers = N_WORKERS,
     workers_requested = N_WORKERS_REQUESTED,
@@ -28,14 +31,17 @@
     max_iter_final = MAX_ITER_FINAL,
     run_external_benchmarks = RUN_EXTERNAL_BENCHMARKS,
     external_benchmark_methods = EXTERNAL_BENCHMARK_METHODS,
-    common_cv_loss = "negative of validation_score(L, shared_fold$validation), with identical ridge/eigenvalue floor",
+    common_cv_loss = "EGCAR and non-SGCA: negative validation_score; SGCA selection uses sgca_cv_score",
     external_preprocessing = "training-mean centering; no variable or block scaling",
     external_parallelism = "methods sequential; parallel over shared folds",
     sgca_k_grid = SGCA_K_GRID,
     sgca_rho_grid = SGCA_RHO_GRID,
-    sgca_rho_rule = "direct coefficients, not rate multipliers",
+    sgca_rho_rule = if (is.null(SGCA_RHO_GRID)) "0.5*sqrt(log(p)/n_train)" else "direct",
     sgca_lambda_grid = SGCA_LAMBDA_GRID,
-    sgca_tgd_algorithm = "Gao--Ma Algorithm 1; scaled iterate W=sqrt(lambda)V; backtracking; no per-iteration normalization",
+    sgca_tgd_algorithm = "Gao--Ma Algorithm 1; fixed 2*eta gradient-half step; no backtracking",
+    sgca_implementation = "paper_algorithm1_0.2.16",
+    sgca_stopping = SGCA_STOPPING, sgca_cv_score = SGCA_CV_SCORE,
+    sgca_cv_require_convergence = SGCA_CV_REQUIRE_CONVERGENCE,
     sgca_eta = SGCA_ETA,
     sgca_ridge_b = SGCA_RIDGE_B,
     sgca_init_tol = SGCA_INIT_TOL,
@@ -124,11 +130,13 @@
       for (n in N_GRID) {
         cat(sprintf("\nrep=%d  r=%d  n=%d\n", rep_id, rank, n))
         views <- lapply(all_views, function(X) X[seq_len(n), , drop = FALSE])
+        preparation_start <- proc.time()[[3L]]
         centered_full <- center_views(views)$views
         full_prep <- prepare_problem(centered_full)
         fold_seed <- MASTER_SEED + 1000000L * rep_id + 10000L * rank + n
         fold_id <- make_folds(n, N_FOLDS, fold_seed)
         fold_objects <- make_fold_objects(views, fold_id)
+        shared_preparation_time <- proc.time()[[3L]] - preparation_start
         p <- full_prep$p
         d_max <- max(p - full_prep$p_list)
         base_e <- sqrt(log(p) / n)
@@ -155,12 +163,12 @@
         # Oracle2: empirical fit restricted to the true supports.
         start <- proc.time()[[3L]]
         C_oracle2 <- fit_oracle_support(full_prep, population$active_local)
-        oracle2_time <- proc.time()[[3L]] - start
         L_oracle2 <- loading_from_operator(
           full_prep, C_oracle2, rank,
           row_threshold = ROW_THRESHOLD,
           covariance_ridge = COVARIANCE_RIDGE
         )
+        oracle2_time <- proc.time()[[3L]] - start
         L_oracle2$C_full <- NULL
         point_rows[[length(point_rows) + 1L]] <- evaluate_method(
           method = "Oracle2-support",
@@ -181,11 +189,11 @@
           max_iter = MAX_ITER_FINAL,
           keep_state = SAVE_FITS
         )
-        time_e_rate <- proc.time()[[3L]] - start
         L_e_rate <- egcar_loading_from_operator(
           full_prep, fit_e_rate$C_hat, rank,
           ROW_THRESHOLD, COVARIANCE_RIDGE, keep_full_C = FALSE
         )
+        time_e_rate <- proc.time()[[3L]] - start
         point_rows[[length(point_rows) + 1L]] <- evaluate_method(
           method = "EGCAR-L11-rate",
           C = fit_e_rate$C_hat,
@@ -245,11 +253,11 @@
           l21_only = TRUE,
           keep_state = SAVE_FITS
         )
-        time_g_rate <- proc.time()[[3L]] - start
         L_g_rate <- tryCatch(egcar_loading_from_operator(
           full_prep, fit_g_rate$C_hat, rank,
           ROW_THRESHOLD, COVARIANCE_RIDGE, keep_full_C = FALSE
         ), error = function(e) list(valid = FALSE, reason = conditionMessage(e)))
+        time_g_rate <- proc.time()[[3L]] - start
         point_rows[[length(point_rows) + 1L]] <- evaluate_method(
           method = "EGCAR-L21-rate",
           C = fit_g_rate$C_hat,
@@ -311,7 +319,7 @@
             file.path(OUT_DIR, "egcar_cv_fold_results.csv"), row.names = FALSE)
         }
 
-        # All four external methods use the SAME shared fold objects/loss.
+        # All four external methods share folds. SGCA uses its selected CV score.
         # They estimate loading spaces, not C, so C/support metrics remain NA.
         external <- run_external_benchmarks(
           views, P_LIST, rank, fold_seed, fold_objects, full_prep
@@ -332,10 +340,15 @@
             fit_time = one_benchmark$fit_time,
             tune_time = one_benchmark$tuning_time,
             converged = one_benchmark$converged,
+            benchmark_completed = one_benchmark$completed %||% NA,
             iterations = one_benchmark$iterations,
             status = one_benchmark$status,
             error_message = one_benchmark$error
           )
+          point_rows[[length(point_rows)]]$benchmark_completed <- one_benchmark$completed %||% NA
+          if (length(one_benchmark$diagnostics))
+            point_rows[[length(point_rows)]] <- cbind(point_rows[[length(point_rows)]],
+              as.data.frame(one_benchmark$diagnostics, stringsAsFactors = FALSE))
           ext_cv <- annotate_cv_table(
             one_benchmark$cv_table, label, rep_id, rank, n,
             one_benchmark$best$candidate %||% NA_integer_
@@ -357,7 +370,11 @@
           }
         }
 
-        results <- rbind(results, do.call(rbind, point_rows))
+        point_results <- do.call(bind_rows_fill, point_rows)
+        point_results$shared_preparation_time <- shared_preparation_time
+        point_results$total_time_with_shared_preparation <- point_results$total_time + shared_preparation_time
+        point_results$timing_version <- "0.2.15"
+        results <- bind_rows_fill(results, point_results)
 
         fit_tag <- paste0("rep", rep_id, "_r", rank, "_n", n)
         point_loadings <- list(
@@ -374,7 +391,7 @@
         }
         point_loadings <- point_loadings[METHOD_ORDER]
         save_compact_loadings(point_loadings, population, rank, n, rep_id,
-                              do.call(rbind, point_rows))
+                              do.call(bind_rows_fill, point_rows))
         if (SAVE_FITS) {
           fits_store[[fit_tag]] <- list(
             Cstar = population$Cstar,
@@ -396,7 +413,7 @@
         # the reported loading matrices, CV tables, selected parameters or errors.
         tryCatch(
           make_loading_visualizations(point_loadings, population, rank, n, rep_id,
-                                      do.call(rbind, point_rows)),
+                                      do.call(bind_rows_fill, point_rows)),
           error = function(e) {
             warning(sprintf("Loading plots failed for %s: %s", fit_tag, conditionMessage(e)))
             plot_dir <- file.path(OUT_DIR, "loading_visualizations", fit_tag)

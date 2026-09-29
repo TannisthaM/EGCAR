@@ -33,7 +33,9 @@ egcar_oracle_population(population, rank = population$rank,
 \item{control}{An \code{egcar_control} object or named subset.}
 \item{population}{Population component returned by \code{egcar_simulate}.}
 }
-\details{The model, covariance divisor, normalization and oracle definitions are
+\details{
+Population truth is calculated in the span of the covariance-scaled latent factors, using a reduced eigenproblem. This preserves the leading subspace and eigenvalues; signs and bases within tied eigenspaces need not match a dense eigensolve. Dense population covariance objects are still returned for compatibility.
+The model, covariance divisor, normalization and oracle definitions are
 inherited from the supplied script. Oracle1 runs the original zero-penalty consensus
 ADMM on exact population covariance blocks with both penalty coefficients equal
 to zero; this diagnostic is intentionally not substituted with the accelerated

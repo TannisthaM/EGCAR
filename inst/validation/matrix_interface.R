@@ -21,7 +21,8 @@ run_egcar_matrix_interface_check <- function(workers = 1L, check_cv = TRUE,
   scope_workers <- getFromNamespace(".egcar_with_workers", "egcar")
   ctl <- egcar::egcar_control(backend = "cpp", max_iter = 150L, max_iter_cv = 100L,
     abs_tol = 0, rel_tol = 0, adaptive_mu = TRUE, check_every = 5L,
-    check_every_cv = 5L, partial_eigen = FALSE)
+    check_every_cv = 5L, partial_eigen = FALSE,
+    cv_require_convergence = FALSE) # Fixed-iteration interface test, not accuracy calibration.
   e <- engine(ctl)
   say <- function(...) if (isTRUE(verbose)) message(...)
   assert <- function(ok, label) if (!isTRUE(ok)) stop(label, call. = FALSE)

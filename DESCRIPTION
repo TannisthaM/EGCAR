@@ -2,7 +2,7 @@ Package: egcar
 Type: Package
 Title: Accelerated Sparse Generalized Correlation Analysis via
         Regression
-Version: 0.2.14
+Version: 0.2.16
 Authors@R: c(person("EGCAR", "Contributors", role = c("aut", "cre"),
     email = "maintainer@example.org"),
     person("Claire", "Donnat", role = "cph",
@@ -27,7 +27,7 @@ SystemRequirements: C++14
 NeedsCompilation: yes
 Config/testthat/edition: 3
 Roxygen: list(markdown = FALSE)
-Packaged: 2026-09-24 14:04:40 UTC; root
 Author: EGCAR Contributors [aut, cre],
   Claire Donnat [cph] (Bundled MIT-licensed initializer helpers)
 Maintainer: EGCAR Contributors <maintainer@example.org>
+Packaged: 2026-09-29 02:30:35 UTC; root

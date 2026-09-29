@@ -18,15 +18,23 @@ evaluate_method <- function(
     iterations = NA_integer_,
     status = "ok",
     error_message = NA_character_,
-    rate_zero_bound = NA_real_) {
+    rate_zero_bound = NA_real_, benchmark_completed = NA) {
 
-  C_full <- if (!is.null(C)) assemble_full_C(C, population$p_list) else NULL
   L <- if (!is.null(loading) && isTRUE(loading$valid)) loading$L else NULL
 
-  if (!is.null(C_full)) {
-    C_error <- frob(C_full - population$Cstar_full)
-    C_relative <- C_error / max(frob(population$Cstar_full), .Machine$double.eps)
-    sm <- support_metrics(C_full, population$active_global)
+  if (!is.null(C)) {
+    edge_table <- make_edge_table(population$p_list)
+    z <- list(p_list = as.integer(population$p_list), edge_k = edge_table$k,
+              edge_l = edge_table$l)
+    norms <- unlist(egcar_group_norms(z, C), use.names = FALSE)
+    er <- if (EGCAR_BACKEND == "cpp") egcar_native_edge_errors(C, population$Cstar) else
+      c(error = sqrt(2 * sum(vapply(seq_along(C), function(j)
+          sum((C[[j]] - population$Cstar[[j]])^2), numeric(1)))),
+        reference = sqrt(2 * sum(vapply(population$Cstar, function(A) sum(A^2), numeric(1)))),
+        zero = as.numeric(all(vapply(C, function(A) all(A == 0), logical(1)))))
+    C_error <- unname(er[["error"]])
+    C_relative <- C_error / max(er[["reference"]], .Machine$double.eps)
+    sm <- .egcar_support_from_norms(norms, population$active_global)
   } else {
     C_error <- C_relative <- NA_real_
     sm <- c(precision = NA, recall = NA, fdp = NA, tp = NA, fp = NA, fn = NA)
@@ -44,9 +52,9 @@ evaluate_method <- function(
   }
 
   loading_valid <- !is.null(L) && is.finite(euclidean_error) && is.finite(sigma0_error)
-  zero_solution <- if (is.null(C_full)) NA else all(C_full == 0)
+  zero_solution <- if (is.null(C)) NA else as.logical(er[["zero"]])
   selected_rows <- if (!is.null(loading$selected)) length(loading$selected) else
-    if (!is.null(C_full)) sum(row_l2(C_full) > ROW_THRESHOLD) else NA_integer_
+    if (!is.null(C)) sum(norms > ROW_THRESHOLD) else NA_integer_
   # Keep genuine external errors/timeouts/skips. Optimizer convergence does
   # not imply that a requested-rank loading exists, and must remain separate.
   if (status %in% c("ok", "not_converged")) {
@@ -55,7 +63,7 @@ evaluate_method <- function(
       error_message <- loading$reason %||% if (isTRUE(zero_solution))
         "The coefficient estimate is zero; no requested-rank loading exists." else
         "No valid loading of the requested rank was returned."
-    } else if (identical(converged, FALSE)) {
+    } else if (identical(converged, FALSE) && !isTRUE(benchmark_completed)) {
       status <- "not_converged"
       if (is.null(error_message) || is.na(error_message))
         error_message <- "ADMM did not satisfy its stopping rule."
@@ -83,6 +91,7 @@ evaluate_method <- function(
     c_e = c_e,
     c_g = c_g,
     converged = converged,
+    benchmark_completed = benchmark_completed,
     iterations = iterations,
     status = status,
     error_message = error_message,
@@ -171,7 +180,8 @@ cross_validate_penalties <- function(
   per_fold <- parallel_map_candidates(fold_inputs, fold_task)
   fold_table <- do.call(rbind, per_fold)
   table <- summarize_loading_cv(data.frame(lambda = grid, candidate = seq_along(grid)),
-                                 fold_table, nfold)
+                                 fold_table, nfold,
+                                 require_convergence = CV_REQUIRE_CONVERGENCE)
   table$rho_e <- if (group) 0 else table$lambda
   table$lambda_g <- if (group) table$lambda else 0
   valid <- which(is.finite(table$mean_loss))
@@ -184,7 +194,7 @@ cross_validate_penalties <- function(
       cv_fold_table = if (isTRUE(SAVE_CV_FOLD_RESULTS)) fold_table else data.frame(),
       best = NULL, rho_e = if (group) 0 else NA_real_, lambda_g = if (group) NA_real_ else 0,
       fit_time = 0, tuning_time = tuning_time, status = "no_valid_cv",
-      error = "No positive CV candidate gave a finite requested-rank score on every fold."))
+      error = "No positive CV candidate satisfied finite scoring and the configured convergence requirement on every fold."))
   }
   best <- table[best_index, , drop = FALSE]
   start <- proc.time()[[3L]]
@@ -202,6 +212,7 @@ cross_validate_penalties <- function(
   loading <- tryCatch(egcar_loading_from_operator(full_prep, fit$C_hat, rank,
     ROW_THRESHOLD, COVARIANCE_RIDGE, require_positive = TRUE, keep_full_C = FALSE),
     error = function(e) list(valid = FALSE, reason = conditionMessage(e)))
+  fit_time <- proc.time()[[3L]] - start
   status <- if (!isTRUE(loading$valid)) "invalid_loading" else
     if (!isTRUE(fit$converged)) "not_converged" else "ok"
   list(fit = fit, loading = loading, cv_table = table,
@@ -247,8 +258,9 @@ run_external_benchmarks <- function(
       return(skipped(label, paste("Missing package:", pkg)))
     }
     start <- proc.time()[[3L]]
-    cat(sprintf("  %s: common-loss CV on %d shared folds with %d allocated worker(s)...\n",
-                label, length(fold_objects), CV_WORKERS))
+    cat(sprintf("  %s: %s CV on %d shared folds with %d allocated worker(s)...\n",
+                label, if (label == "SGCA") SGCA_CV_SCORE else "common_loss",
+                length(fold_objects), CV_WORKERS))
     out <- tryCatch({
       f <- switch(label,
         SGCA = sgca_common_cv, RGCCA = rgcca_common_cv,
@@ -282,7 +294,8 @@ run_external_benchmarks <- function(
 }
 
 summarize_metric <- function(results, metric, rank_value) {
-  d <- results[results$rank == rank_value & is.finite(results[[metric]]), , drop = FALSE]
+  ok <- if ("status" %in% names(results)) !is.na(results$status) & results$status == "ok" else rep(TRUE, nrow(results))
+  d <- results[ok & results$rank == rank_value & is.finite(results[[metric]]), , drop = FALSE]
   if (nrow(d) == 0L) return(NULL)
   groups <- split(d, interaction(d$n, d$method, drop = TRUE))
   out <- do.call(rbind, lapply(groups, function(g) {
@@ -720,6 +733,16 @@ save_checkpoint <- function(results, cv_results, fits, populations, config,
     unlink(tmp)
   }
   utils::write.csv(results, file.path(OUT_DIR, "simulation_results.csv"), row.names = FALSE)
+  if (nrow(results) && all(c("rank", "n", "method", "status") %in% names(results))) {
+    groups <- split(results, interaction(results$rank, results$n, results$method, drop = TRUE))
+    counts <- do.call(rbind, lapply(groups, function(d) data.frame(
+      rank = d$rank[[1L]], n = d$n[[1L]], method = d$method[[1L]],
+      recorded_runs = nrow(d), successful_runs = sum(d$status == "ok", na.rm = TRUE),
+      timeouts = sum(d$status == "time_limit", na.rm = TRUE),
+      unsuccessful_runs = sum(is.na(d$status) | d$status != "ok"))))
+    rownames(counts) <- NULL
+    utils::write.csv(counts, file.path(OUT_DIR, "completion_counts.csv"), row.names = FALSE)
+  }
   if (nrow(cv_results) > 0L) {
     utils::write.csv(cv_results, file.path(OUT_DIR, "cv_grid_results.csv"), row.names = FALSE)
     if ("selected" %in% names(cv_results)) {

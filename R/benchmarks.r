@@ -41,8 +41,10 @@ benchmark_dependencies <- function() {
   workers <- as.integer(min(workers, data$nfolds))
   e <- .egcar_engine(control, benchmarks, workers)
   # Tied bound grids depend on the actual feature dimensions, not a simulation setting.
-  if (method == "SGCA" && is.null(parameters$k_grid))
-    parameters$k_grid <- sort(unique(c(5L, 10L, 15L, 20L, 30L, data$p)))
+  if (method == "SGCA" && is.null(parameters$k_grid)) {
+    parameters$k_grid <- seq.int(5L, 100L, 5L)[seq.int(5L, 100L, 5L) >= rank & seq.int(5L, 100L, 5L) <= data$p]
+    if (!length(parameters$k_grid)) parameters$k_grid <- data$p
+  }
   if (method == "SGCCA" && is.null(parameters$sparsity_grid))
     parameters$sparsity_grid <- seq(max(1 / sqrt(data$p_list)), 1, length.out = 10L)
   if (method == "MultiCCA" && is.null(parameters$penalty_grid))
@@ -210,12 +212,17 @@ bind_rows_fill <- function(...) {
   out
 }
 
-summarize_loading_cv <- function(grid, fold_table, nfold) {
+summarize_loading_cv <- function(grid, fold_table, nfold, require_convergence = FALSE, require_completion = FALSE) {
   out <- lapply(seq_len(nrow(grid)), function(j) {
     rows <- fold_table[fold_table$candidate == grid$candidate[[j]], , drop = FALSE]
     valid <- is.finite(rows$loss)
-    complete <- nrow(rows) == nfold && length(unique(rows$fold)) == nfold && all(valid)
+    converged <- !is.na(rows$converged) & rows$converged
+    complete <- nrow(rows) == nfold && length(unique(rows$fold)) == nfold && all(valid) &&
+      (!require_convergence || all(converged)) &&
+      (!require_completion || ("completed" %in% names(rows) && all(!is.na(rows$completed) & rows$completed)))
     cv <- data.frame(
+      eligible = complete,
+      convergence_required = require_convergence,
       mean_loss = if (complete) mean(rows$loss) else Inf,
       sd_loss = if (complete && nfold > 1L) stats::sd(rows$loss) else NA_real_,
       valid_folds = sum(valid),
@@ -235,7 +242,8 @@ summarize_loading_cv <- function(grid, fold_table, nfold) {
 cross_validate_loading_grid <- function(
     full_views, full_prep, fold_objects, rank, grid,
     prepare_context, fit_candidate, label, seed = 1L,
-    parallel_folds = PARALLEL_CV) {
+    parallel_folds = PARALLEL_CV, score_loss = validation_loss,
+    require_convergence = FALSE, require_completion = FALSE) {
 
   if (!is.data.frame(grid) || nrow(grid) == 0L) stop("The tuning grid is empty.")
   if (length(fold_objects) < 2L) stop("At least two shared folds are required.")
@@ -269,28 +277,30 @@ cross_validate_loading_grid <- function(
         if (is.null(context)) stop(context_error %||% "Training preparation failed.")
         fit <- fit_candidate(context, grid[j, , drop = FALSE], final = FALSE)
         L <- validate_loading_matrix(fit$L, p, rank)
-        loss <- validation_loss(L, fo$validation)
-        if (!is.finite(loss)) stop("The common held-out loss is non-finite.")
+        loss <- score_loss(L, fo$validation)
+        if (!is.finite(loss)) stop("The held-out loss is non-finite.")
         list(loss = loss, converged = fit$converged %||% NA,
+             completed = fit$completed %||% TRUE, diagnostics = fit$diagnostics,
              iterations = fit$iterations %||% NA_integer_, error = NA_character_)
       }, warning = function(w) {
         notes <<- unique(c(notes, conditionMessage(w)))
         invokeRestart("muffleWarning")
       }), error = function(e) {
-        list(loss = Inf, converged = FALSE, iterations = NA_integer_,
+        list(loss = Inf, converged = FALSE, completed = FALSE, iterations = NA_integer_,
              error = conditionMessage(e))
       })
       rows[[j]] <- data.frame(
         candidate = grid$candidate[[j]], fold = f,
         n_train = fo$prep$n, loss = one$loss, score = -one$loss,
-        converged = one$converged, iterations = one$iterations,
+        converged = one$converged, completed = one$completed, iterations = one$iterations,
         elapsed = proc.time()[[3L]] - candidate_start,
         error_message = one$error,
         warning_message = if (length(notes)) paste(notes, collapse = " | ") else NA_character_,
         stringsAsFactors = FALSE
       )
+      if (length(one$diagnostics)) rows[[j]] <- cbind(rows[[j]], as.data.frame(one$diagnostics, stringsAsFactors = FALSE))
     }
-    do.call(rbind, rows)
+    do.call(bind_rows_fill, rows)
   }
 
   per_fold <- if (isTRUE(parallel_folds) && PARALLEL_CV) {
@@ -298,14 +308,15 @@ cross_validate_loading_grid <- function(
   } else {
     lapply(fold_objects, per_fold_fun)
   }
-  fold_table <- do.call(rbind, per_fold)
-  cv_table <- summarize_loading_cv(grid, fold_table, Kfold)
+  fold_table <- do.call(bind_rows_fill, per_fold)
+  cv_table <- summarize_loading_cv(grid, fold_table, Kfold,
+    require_convergence = require_convergence, require_completion = require_completion)
   valid <- which(is.finite(cv_table$mean_loss))
   best_index <- if (length(valid)) valid[which.min(cv_table$mean_loss[valid])] else NA_integer_
   cv_table$selected <- !is.na(best_index) & seq_len(nrow(cv_table)) == best_index
   tuning_time <- proc.time()[[3L]] - tuning_start
   # Add parameter columns to the long diagnostics, preserving fold order.
-  extra_cols <- setdiff(names(grid), "candidate")
+  extra_cols <- setdiff(names(grid), c("candidate", names(fold_table)))
   if (length(extra_cols)) {
     fold_table <- cbind(fold_table, grid[
       match(fold_table$candidate, grid$candidate), extra_cols, drop = FALSE
@@ -321,8 +332,9 @@ cross_validate_loading_grid <- function(
       cv_fold_table = if (isTRUE(get0("RETAIN_CV_FOLD_TABLES", inherits = TRUE, ifnotfound = TRUE))) fold_table else data.frame(),
       best = NULL,
       fit_time = 0, tuning_time = tuning_time, time = tuning_time,
-      status = "no_valid_cv", converged = FALSE, iterations = NA_integer_,
-      error = paste0("No ", label, " candidate had a finite loss on every fold.",
+      status = "no_valid_cv", converged = FALSE, completed = FALSE,
+      diagnostics = list(), iterations = NA_integer_,
+      error = paste0("No ", label, " candidate satisfied the required validity, completion and convergence checks on every fold.",
         if (length(msgs)) paste0(" ", paste(head(msgs, 3L), collapse = " | ")) else "")
     ))
   }
@@ -349,7 +361,7 @@ cross_validate_loading_grid <- function(
 
   bad <- is.null(final_out$L)
   conv <- if (bad) FALSE else final_out$converged %||% NA
-  status <- if (bad) "refit_error" else if (identical(conv, FALSE)) "not_converged" else "ok"
+  status <- if (bad) "refit_error" else final_out$status %||% if (identical(conv, FALSE)) "not_converged" else "ok"
   list(
     L = final_out$L,
     loading = if (!bad) list(valid = TRUE, L = final_out$L) else NULL,
@@ -360,8 +372,10 @@ cross_validate_loading_grid <- function(
     fit_time = fit_time, tuning_time = tuning_time,
     time = fit_time + tuning_time,
     status = status, converged = conv,
+    completed = !bad && isTRUE(final_out$completed %||% TRUE),
+    diagnostics = final_out$diagnostics %||% list(),
     iterations = final_out$iterations %||% NA_integer_,
-    error = if (bad) final_out$error else if (identical(conv, FALSE))
+    error = if (bad) final_out$error else if (status == "not_converged")
       "Final solver reached its iteration limit or did not satisfy its stopping rule." else NA_character_,
     warnings = final_notes
   )

@@ -18,17 +18,21 @@ COVARIANCE_RIDGE <- 1e-4
 ORACLE1_MAX_ITER <- 2000L
 PARALLEL_CV <- FALSE
 CV_WORKERS <- 1L
+CV_REQUIRE_CONVERGENCE <- TRUE
 BLAS_THREADS <- 1L
-SGCA_K_GRID <- c(5L, 10L, 15L, 20L, 30L, 45L)
-SGCA_RHO_GRID <- c(0, 1e-3, 1e-2, 0.1, 0.5, 1)
-SGCA_LAMBDA_GRID <- 10^seq(-5, 4)
+SGCA_K_GRID <- seq.int(5L, 100L, 5L)
+SGCA_RHO_GRID <- NULL  # 0.5 * sqrt(log(total p) / training n)
+SGCA_LAMBDA_GRID <- 0.01
 SGCA_ETA <- 0.001
-SGCA_RIDGE_B <- 1e-6
+SGCA_RIDGE_B <- 0
 SGCA_INIT_TOL <- 5e-3
-SGCA_MAX_ITER_INIT <- Inf
+SGCA_MAX_ITER_INIT <- 1000L
 SGCA_TGD_TOL <- 1e-6
-SGCA_MAX_ITER_TGD <- Inf
+SGCA_MAX_ITER_TGD <- 15000L
 SGCA_TIME_LIMIT <- 6 * 60 * 60
+  SGCA_STOPPING <- "fixed_iterations"
+  SGCA_CV_SCORE <- "paper"
+  SGCA_CV_REQUIRE_CONVERGENCE <- FALSE
 FAST_SGCA_INITIALIZER <- TRUE
 RGCCA_TAU_GRID <- c(1e-6, 1e-3, 0.1, 0.25, 0.5, 0.75, 1)
 RGCCA_SCHEME <- "factorial"
@@ -66,9 +70,13 @@ ALIGN_EXTERNAL_BLOCK_SIGNS <- TRUE
   "loading_metric_factors",
   "make_validation_covariance",
   "validation_score",
+  ".egcar_score_gram",
+  ".egcar_score_components",
   "orthonormal_basis",
   "sine_theta_distance",
   "support_metrics",
+  ".egcar_support_from_norms",
+  ".egcar_population_truth",
   "make_folds",
   "make_fold_objects",
   "cache_problem_matrices_reference",
@@ -117,6 +125,7 @@ ALIGN_EXTERNAL_BLOCK_SIGNS <- TRUE
   "sgca_prepare_initializer",
   "sgca_init_cached",
   "sgca_tgd_penalized",
+  "sgca_paper_validation_loss",
   "get_sgca_initializer",
   "sgca_init_fixed",
   "updatePi",
@@ -168,6 +177,7 @@ parallel_map_candidates <- function(indices, FUN) lapply(indices, FUN)
   e$ROW_THRESHOLD <- control$row_threshold
   e$COVARIANCE_RIDGE <- control$covariance_ridge
   e$ORACLE1_MAX_ITER <- control$max_iter
+  e$CV_REQUIRE_CONVERGENCE <- control$cv_require_convergence
   e$CV_WORKERS <- as.integer(workers)
   e$PARALLEL_CV <- workers > 1L
   e$BLAS_THREADS <- control$blas_threads
@@ -175,6 +185,8 @@ parallel_map_candidates <- function(indices, FUN) lapply(indices, FUN)
           sgca_init_tol = "SGCA_INIT_TOL", sgca_init_max_iter = "SGCA_MAX_ITER_INIT",
           sgca_tgd_tol = "SGCA_TGD_TOL", sgca_tgd_max_iter = "SGCA_MAX_ITER_TGD",
           sgca_time_limit = "SGCA_TIME_LIMIT",
+          sgca_stopping = "SGCA_STOPPING", sgca_cv_score = "SGCA_CV_SCORE",
+          sgca_cv_require_convergence = "SGCA_CV_REQUIRE_CONVERGENCE",
           fast_sgca_initializer = "FAST_SGCA_INITIALIZER",
           rgcca_scheme = "RGCCA_SCHEME", rgcca_tol = "RGCCA_TOL",
           rgcca_max_iter = "RGCCA_MAX_ITER", multicca_niter = "MULTICCA_NITER",

@@ -561,7 +561,9 @@ make_validation_covariance <- function(centered_views) {
   # Diagonal blocks are already present in Sigma; do not traverse X again.
   idx <- make_block_indices(vapply(centered_views, ncol, integer(1L)))
   Sigma0 <- block_diag(lapply(idx, function(ii) Sigma[ii, ii, drop = FALSE]))
-  list(Sigma = Sigma, Sigma0 = Sigma0)
+  # Keep the small mean vector so SGCA can form test-centered covariance
+  # scores while EGCAR retains its existing training-centered score.
+  list(Sigma = Sigma, Sigma0 = Sigma0, mean = colMeans(X), n = n)
 }
 
 .egcar_validate_init <- function(init, prep, penalty) {
@@ -652,6 +654,8 @@ egcar_warm_state <- function(raw, group) {
     p_list = prepared$p_list, p = prepared$p, n = prepared$n,
     converged = raw$converged, iterations = raw$iterations,
     status = status, error = if (!ok) loading$reason else NULL,
-    control = control, fit_time = fit_time, loading_time = loading_time,
+    control = control, solver_time = fit_time,
+    fit_time = fit_time + loading_time, loading_time = loading_time,
+    total_time = fit_time + loading_time, timing_version = "0.2.15",
     preparation_time = prepared$preparation_time, call = call), class = "egcar_fit")
 }

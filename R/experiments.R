@@ -19,7 +19,7 @@ run_egcar_experiments <- function(
     message("Parallel packages missing: all CV methods use one worker.")
     workers <- 1L
   }
-  ctl <- egcar_control(backend = backend, max_iter = config$max_iter_final,
+  ctl <- egcar_control(backend = backend, cv_require_convergence = config$cv_require_convergence, max_iter = config$max_iter_final,
     max_iter_cv = config$max_iter_cv, mu = config$mu_z, abs_tol = config$abs_tol,
     rel_tol = config$rel_tol, adaptive_mu = config$adaptive_mu,
     check_every_cv = config$check_every_admm, row_threshold = config$row_threshold,
@@ -29,6 +29,8 @@ run_egcar_experiments <- function(
     sgca_init_tol = config$sgca_init_tol, sgca_init_max_iter = config$sgca_max_iter_init,
     sgca_tgd_tol = config$sgca_tgd_tol, sgca_tgd_max_iter = config$sgca_max_iter_tgd,
     sgca_time_limit = config$sgca_time_limit,
+    sgca_stopping = config$sgca_stopping, sgca_cv_score = config$sgca_cv_score,
+    sgca_cv_require_convergence = config$sgca_cv_require_convergence,
     fast_sgca_initializer = config$fast_sgca_initializer, rgcca_scheme = config$rgcca_scheme,
     rgcca_tol = config$rgcca_tol, rgcca_max_iter = config$rgcca_max_iter,
     multicca_niter = config$multicca_niter, multicca_backend = config$multicca_backend,

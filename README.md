@@ -1,3 +1,64 @@
+# EGCAR 0.2.16: paper-based SGCA
+
+SGCA now implements Gao and Ma's Algorithm 1. Read
+[the SGCA specification](inst/doc/SGCA_PAPER_0216.md) before comparing with older results.
+Defaults: fixed 15000 updates, eta=0.001, lambda=0.01, no added metric ridge;
+rho=0.5*sqrt(log(total p)/training n) is recomputed per fold and refit.
+The initializer enforces trace=rank and uses tolerance 0.005 with a real cap of
+1000 outer iterations. The initializer tolerance/cap come from authors' R code,
+not a paper accuracy guarantee.
+
+Five-fold CV selects total row sparsity on valid members of 5,10,...,100 using
+the paper's covariance-trace score. `benchmark_control(sgca_cv_score="common_loss")`
+selects the common comparison score. `rho_grid=NULL` is the rate rule; explicitly
+supplied numeric rho values remain direct coefficients.
+
+`status="ok"` reports completion with valid loadings. `converged` is a separate
+numerical diagnostic: completing 15000 steps does not prove convergence. See
+`fit$diagnostics` and `fit$cv_fold_table`. A capped initializer remains usable in
+the default fixed-iteration benchmark; `sgca_cv_require_convergence=TRUE` makes
+both numerical criteria mandatory. The six-hour complete-CV budget remains.
+EGCAR's full-loading runtime accounting and memory improvements from 0.2.15 remain.
+
+```r
+library(egcar)
+shared <- egcar_cv_data(views, nfolds=5, seed=1)
+fit <- sgca_cv(shared, rank=1)
+fit$status
+fit$converged
+fit$diagnostics
+```
+
+Reinstall 0.2.16, restart R and workers, copy the updated `inst/cluster` launchers,
+and use a fresh result directory. Old launchers explicitly override SGCA grids,
+ridge and caps. Versioned documents below describe historical releases; this
+section and `SGCA_PAPER_0216.md` govern current SGCA behavior.
+
+# EGCAR 0.2.15 update
+
+This release records the full EGCAR fit through loading extraction. `fit_time`
+includes `solver_time` and `loading_time`; never add `loading_time` again.
+For CV, `total_time = tuning_time + fit_time`. `wall_time` measures the current
+public fit/CV call, including preparation performed in that call. Preparation
+stored in a reusable object is historical and must not be charged twice.
+Experiment results also report shared preparation separately.
+
+New efficiencies: streaming native group norms and coefficient-error reductions,
+shared bounded loading-factor caches across a regularization path, direct reuse
+of prediction scores in `egcar_score`, and a reduced population-truth eigenproblem.
+Objectives, statistical penalty scales, residual tolerances, and requested loading
+rank are unchanged. In 0.2.15 CV required convergence for both methods; SGCA now has the separate benchmark policy described above.
+Successful-fit plots exclude unsuccessful statuses; `completion_counts.csv`
+reports success/timeout counts among recorded runs. Inspect that denominator
+alongside plots. These changes do not establish equal accuracy across methods.
+
+See `inst/doc/VALIDATION_0215.md` for measured savings, tests and remaining validation limits.
+Use a fresh study output directory; updated tier launchers require 0.2.15.
+
+Reinstall from source and restart R/workers: this release adds native entry points.
+Older saved objects retain their old timing interpretation; use `timing_version`
+to distinguish newly computed results.
+
 # Calibrated L21 rate in 0.2.14
 
 `EGCAR_L21_Rate()` and `egcar_rate(penalty="l21")` now use **`multiplier=0.05`**,
@@ -62,8 +123,7 @@ cfg <- egcar_experiment_config(sgca_time_limit = 6 * 60 * 60)
 The six-hour budget covers **one whole SGCA CV grid plus final refit**, including
 initialization. It is not six hours per candidate or fold. Shared data/fold
 preparation happens before the budget starts. In the experiment runner, each
-dataset/rank/replicate receives a fresh budget. Both SGCA iteration caps now
-default to `Inf`; optional finite caps still work for reproducibility and tests.
+dataset/rank/replicate receives a fresh budget. In 0.2.13--0.2.15 both caps defaulted to `Inf`. Version 0.2.16 uses the fixed-step policy above.
 A timeout returns `status="time_limit"`, `timed_out=TRUE`, `converged=FALSE`, and
 `L=NULL`, with the reason "SGCA did not converge in real time". This means the
 requested procedure did not finish within the budget, not that the optimizer
@@ -296,9 +356,10 @@ Oracle2 still uses sample covariance restricted to the true supports.
 ## Comparison CV
 
 `sgca_cv`, `rgcca_cv`, `sgcca_cv`, and `multicca_cv` accept the same shared
-`egcar_cv_data` object. They preserve the local experiment's common generalized
-Rayleigh loss, training-mean centering, covariance divisor n, tie rules, training-only
-sign synchronization, cached initializer, penalized TGD and PMA Gram backend.
+`egcar_cv_data` object. SGCA defaults to the paper covariance-trace CV score;
+the other wrappers retain the common generalized Rayleigh loss. All use the
+same fold assignment and training-mean centering. EGCAR 0.2.16 changes SGCA's
+solver, tuning defaults and eligibility as described at the top of this file.
 See `inst/examples/06_comparison_cv.R` for explicit calls and grids.
 
 ## Output
@@ -314,8 +375,7 @@ alignment to truth; no truth is used in CV or ordinary fitting.
 The new fit keys are `EGCAR_L21_rate` and `EGCAR_L21_CV`; L11 keys are unchanged.
 
 Failed CV is recorded as `no_valid_cv`, with no selected penalty or arbitrary
-fallback fit. Finite nonconverged fits remain eligible exactly as in the local
-benchmark, with convergence diagnostics retained. Smoke tests intentionally use
+fallback fit. EGCAR requires convergence and finite requested-rank scores on every fold. SGCA uses its own completion/convergence controls described above. Smoke tests intentionally use
 short limits and can report nonconvergence; they are not accuracy/runtime studies.
 
 ## Check before the full study
@@ -331,8 +391,9 @@ Rscript tools/check.R .
 ```
 
 Set `EGCAR_TEST_OPTIONAL=true` to include optional comparison/parallel tests.
-The supplied standalone/package equivalence checker is in
-`tools/verify_EGCAR_rewrites.R` and is also provided separately.
+The former standalone-equivalence checker now runs the maintained numerical
+conformance tests: `Rscript tools/verify_EGCAR_rewrites.R .` from the package root.
+The standalone entrypoint delegates to the same installed package.
 
 **Validation history:** Early releases were checked without an R runtime.
 Version 0.2.12 was subsequently compiled and tested in R: 767 expectations
@@ -356,16 +417,15 @@ notices. Author/maintainer placeholders in DESCRIPTION must be replaced before
 public distribution. This archive is an editable source repository, not a
 Windows binary package or a claimed CRAN release.
 
-## Standalone versus package validation
+## Numerical conformance checks
 
-```bash
-Rscript verify_EGCAR_rewrites.R run_EGCAR_local.R rewrite_checks 1
-Rscript verify_EGCAR_rewrites.R run_EGCAR_local.R rewrite_checks_parallel 2
+From the extracted package source directory, after installing 0.2.16:
+
+```sh
+Rscript tools/verify_EGCAR_rewrites.R .
 ```
 
-This verifier checks source-body identity for the comparison CV routines and
-runs small local/package studies with both accelerated R and native backends.
-It compares folds, selected coefficients, operator estimates and statistical
-metrics, but deliberately does not compare wall-clock times. It reports missing
-comparison dependencies as skipped, not passed. It has not been executed in the
-creation environment because that environment did not contain R.
+This runs the independent SGCA Algorithm 1 checks plus EGCAR numerical and timing
+regressions. The standalone entrypoint now delegates to the installed package;
+there is no separate source-body identity claim. See `inst/doc/VALIDATION_0216.md`
+for actual validation outcomes, including the local process-supervision limits.
