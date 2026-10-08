@@ -1,0 +1,4 @@
+Prepared /tmp/RtmpfvJhDu/input_checks_1225f1ea46/regenerated/dataset_201.rds; same_seeds_original_hash_unavailable
+Prepared /tmp/RtmpfvJhDu/input_checks_1225f1ea46/reused/dataset_201.rds; reused_original_bundle
+Prepared /tmp/RtmpfvJhDu/input_checks_1225f1ea46/matched/dataset_201.rds; regenerated_hash_matches_original
+PASS: original tier data and folds reproduced; reference-only reuse; original metric hash match; immutable preparation; tamper rejection

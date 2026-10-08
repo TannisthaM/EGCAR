@@ -19,6 +19,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <utility>
+#include <chrono>
 
 namespace egcar_fast {
 using arma::mat;
@@ -44,7 +45,7 @@ struct State {
   // Group state: Hk/Hl = G + V at each endpoint; a is one multiplier per row.
   // Legacy G/V fields are used only to accept arbitrary old warm starts.
   std::vector<mat> Hk, Hl;
-  std::vector<vec> a;
+  std::vector<vec> a, hnull;
 };
 struct Result {
   State state;
@@ -55,6 +56,8 @@ struct Result {
   double eps_primal = std::numeric_limits<double>::quiet_NaN();
   double eps_dual = std::numeric_limits<double>::quiet_NaN();
   double mu;
+  double symmetry_time=0;
+  std::vector<vec> directed_norms;
   std::vector<std::array<double,7> > history;
 };
 inline double sqnorm(const mat& A) { return arma::accu(arma::square(A)); }
@@ -379,6 +382,276 @@ inline Result solve(const Problem& p, State s, const Control& ctl, bool group,
   }
   out.state=std::move(s); return out;
 }
+// One global row proximal map. H=Z+U and one multiplier per row encode
+// both Z and scaled U. Directed edges are updated independently; C is a
+// single reusable edge buffer, never a persistent P-by-P matrix.
+inline Result solve_direct_l21(const Problem& p, State s, const Control& ctl,
+    void (*interrupt)()=nullptr,
+    void (*progress)(int,double,double,double,double)=nullptr) {
+  if(ctl.max_iter<1 || ctl.check_every<1 || ctl.adapt_every<1 ||
+     !(ctl.mu>0) || !std::isfinite(ctl.mu) || ctl.penalty<0 || !std::isfinite(ctl.penalty))
+    throw std::invalid_argument("Invalid direct L21 controls.");
+  const double alpha=1.6; // over-relaxed ADMM; directed global row objective
+  Result out;out.mu=ctl.mu;
+  std::vector<mat> den(p.edges.size());
+  std::vector<vec> nw,nd,wd,nc;
+  for(unsigned size:p.sizes) {
+    nw.emplace_back(size,arma::fill::zeros);nd.emplace_back(size,arma::fill::zeros);
+    wd.emplace_back(size,arma::fill::zeros);nc.emplace_back(size,arma::fill::zeros);
+  }
+  Workspace work;mat current;double previous_shift=-1;
+  if(ctl.history) out.history.reserve(ctl.max_iter/ctl.check_every+2);
+  for(int it=1;it<=ctl.max_iter;++it) {
+    if(interrupt && (it==1 || it%32==0)) interrupt();
+    const bool check=it==1 || it==ctl.max_iter || it%ctl.check_every==0;
+    const double shift=2*out.mu;
+    if(shift!=previous_shift) {
+      for(unsigned e=0;e<p.edges.size();++e) den[e]=p.edges[e].D+shift;
+      previous_shift=shift;
+    }
+    for(vec& v:nw) v.zeros();
+    if(check) {for(vec& v:nd)v.zeros();for(vec& v:wd)v.zeros();for(vec& v:nc)v.zeros();}
+    double objective=0;
+    for(unsigned e=0;e<p.edges.size();++e) {
+      const Edge& z=p.edges[e];
+      for(unsigned side=0;side<2;++side) {
+        mat& H=side?s.Hl[e]:s.Hk[e];
+        const unsigned k=side?z.l:z.k;
+        work.target.set_size(H.n_rows,H.n_cols);
+        for(arma::uword j=0;j<H.n_cols;++j)for(arma::uword i=0;i<H.n_rows;++i)
+          work.target(i,j)=(2*s.a[k][side?j:i]-1)*H(i,j);
+        c_update_into(p,e,shift,den[e],work.coefficient,current,work);
+        if(check && ctl.history)
+          objective+=.25*arma::accu(z.D%arma::square(work.coefficient))-.5*arma::accu(z.S%current);
+        for(arma::uword j=0;j<H.n_cols;++j)for(arma::uword i=0;i<H.n_rows;++i) {
+          const arma::uword row=side?j:i;
+          const double old=H(i,j),c=current(i,j),w=alpha*c+(1-alpha*s.a[k][row])*old;
+          nw[k][row]+=w*w;
+          if(check) {const double diff=w-old;nd[k][row]+=diff*diff;wd[k][row]+=w*diff;nc[k][row]+=c*c;}
+          H(i,j)=w;
+        }
+      }
+    }
+    double rp2=0,rd2=0,nc2=0,nz2=0,ny2=0;
+    for(unsigned k=0;k<s.a.size();++k)for(arma::uword i=0;i<s.a[k].n_elem;++i) {
+      const double ao=s.a[k][i],norm=std::sqrt(nw[k][i]);
+      const double an=std::max(0.0,1-ctl.penalty/out.mu/std::max(norm,std::numeric_limits<double>::epsilon()));
+      if(check) {
+        const double delta=ao-an;
+        rp2+=std::max(0.0,delta*delta*nw[k][i]+(1/alpha-ao)*(1/alpha-ao)*nd[k][i]+2*delta*(1/alpha-ao)*wd[k][i]);
+        rd2+=std::max(0.0,delta*delta*nw[k][i]+ao*ao*nd[k][i]-2*delta*ao*wd[k][i]);
+        nc2+=nc[k][i];nz2+=an*an*nw[k][i];ny2+=(1-an)*(1-an)*nw[k][i];
+        if(ctl.history) objective+=ctl.penalty*std::sqrt(nc[k][i]);
+      }
+      s.a[k][i]=an;
+    }
+    out.iterations=it;
+    if(check) {
+      out.primal=std::sqrt(rp2);out.dual=out.mu*std::sqrt(rd2);
+      out.eps_primal=std::sqrt(2*p.q)*ctl.abs_tol+ctl.rel_tol*std::max(std::sqrt(nc2),std::sqrt(nz2));
+      out.eps_dual=std::sqrt(2*p.q)*ctl.abs_tol+ctl.rel_tol*out.mu*std::sqrt(ny2);
+      if(ctl.history) out.history.push_back({{double(it),objective,out.primal,out.dual,out.eps_primal,out.eps_dual,out.mu}});
+      if(!std::isfinite(out.primal)||!std::isfinite(out.dual)) break;
+      if(out.primal<=out.eps_primal && out.dual<=out.eps_dual) {out.converged=true;break;}
+      if(ctl.adaptive && it%ctl.adapt_every==0) {
+        double factor=1;
+        const double nr=out.primal/std::max(std::max(std::sqrt(nc2),std::sqrt(nz2)),std::numeric_limits<double>::epsilon());
+        const double ns=out.dual/std::max(out.mu*std::sqrt(ny2),std::numeric_limits<double>::epsilon());
+        if(nr>ctl.balance_ratio*std::max(ns,std::numeric_limits<double>::epsilon())) factor=ctl.scale_factor;
+        else if(ns>ctl.balance_ratio*std::max(nr,std::numeric_limits<double>::epsilon())) factor=1/ctl.scale_factor;
+        if(factor!=1) {out.mu*=factor;compressed_group_rescale(p,s,factor);}
+      }
+      if(progress && (it==1 || it%100==0)) progress(it,out.primal,out.dual,out.eps_primal,out.eps_dual);
+    }
+  }
+  out.state=std::move(s);return out;
+}
+
+// Right-orthogonal coordinates preserve every global row norm. The component
+// in the right covariance nullspace is retained as h[k][i] times the row of
+// S_kl(I-Q_l Q_l'). This scalar is shared by all outgoing blocks of that row.
+// Thus this reduction also handles deliberately nonzero nullspace forcing.
+inline Result solve_rotated_l21(const Problem& p, State s, const Control& ctl,
+    double group_zero_tol, double entry_zero_tol, bool zero_certificate, bool keep_state,
+    void (*interrupt)()=nullptr,
+    void (*progress)(int,double,double,double,double)=nullptr) {
+  if(ctl.max_iter<1 || ctl.check_every<1 || ctl.adapt_every<1 ||
+     !(ctl.mu>0) || !std::isfinite(ctl.mu) || ctl.penalty<0 || !std::isfinite(ctl.penalty))
+    throw std::invalid_argument("Invalid rotated L21 controls.");
+  Result out; out.mu=ctl.mu;
+  const unsigned E=p.edges.size(), K=p.sizes.size();
+  const double alpha=1.6;
+  std::vector<mat> remk(E),reml(E),den(E);
+  std::vector<vec> null2,nw,nd,wd,nc;
+  for(unsigned pk:p.sizes) {
+    null2.emplace_back(pk,arma::fill::zeros);nw.emplace_back(pk,arma::fill::zeros);
+    nd.emplace_back(pk,arma::fill::zeros);wd.emplace_back(pk,arma::fill::zeros);
+    nc.emplace_back(pk,arma::fill::zeros);
+  }
+  Workspace w; mat current, rhs, tmp;
+  for(unsigned e=0;e<E;++e) {
+    const Edge& z=p.edges[e];
+    for(unsigned side=0;side<2;++side) {
+      const unsigned k=side?z.l:z.k, l=side?z.k:z.l;
+      const mat& Q=p.Q[k];const mat& R=p.Q[l];
+      if(side) multiply_into<true,false>(z.S,R,rhs);
+      else multiply_into<false,false>(z.S,R,rhs);
+      if(Q.n_cols<Q.n_rows) {
+        if(side) multiply_into<false,true>(Q,z.St,tmp);
+        else multiply_into<false,false>(Q,z.St,tmp);
+        (side?reml[e]:remk[e])=rhs-tmp;
+      }
+      if(R.n_cols<R.n_rows) {
+        multiply_into<false,true>(rhs,R,tmp);
+        for(arma::uword j=0;j<tmp.n_cols;++j)for(arma::uword i=0;i<tmp.n_rows;++i) {
+          const double v=(side?z.S(j,i):z.S(i,j))-tmp(i,j);
+          null2[k][i]+=v*v;
+        }
+      }
+      if(zero_certificate) (side?s.Hl[e]:s.Hk[e])=rhs/(2*out.mu);
+    }
+  }
+  if(zero_certificate) {
+    for(unsigned k=0;k<K;++k) {s.a[k].zeros();s.hnull[k].fill(1/(2*out.mu));}
+    out.converged=true;out.iterations=0;out.primal=out.dual=0;
+    double sn2=0;for(const Edge& z:p.edges)sn2+=sqnorm(z.S);
+    out.eps_primal=std::sqrt(2*p.q)*ctl.abs_tol;
+    out.eps_dual=out.eps_primal+ctl.rel_tol*std::sqrt(sn2/2);
+    if(ctl.history)out.history.push_back({{0,0,0,0,out.eps_primal,out.eps_dual,out.mu}});
+  }
+  double previous_shift=-1;
+  if(ctl.history)out.history.reserve(ctl.max_iter/ctl.check_every+2);
+  for(int it=1;!zero_certificate && it<=ctl.max_iter;++it) {
+    if(interrupt && (it==1 || it%32==0))interrupt();
+    const bool check=it==1 || it==ctl.max_iter || it%ctl.check_every==0;
+    const double shift=2*out.mu;
+    if(shift!=previous_shift) {
+      for(unsigned e=0;e<E;++e)den[e]=p.edges[e].D+shift;
+      previous_shift=shift;
+    }
+    for(vec& x:nw)x.zeros();
+    if(check){for(vec& x:nd)x.zeros();for(vec& x:wd)x.zeros();for(vec& x:nc)x.zeros();}
+    double objective=0;
+    for(unsigned e=0;e<E;++e) {
+      const Edge& z=p.edges[e];
+      for(unsigned side=0;side<2;++side) {
+        const unsigned k=side?z.l:z.k;const mat& Q=p.Q[k];
+        mat& H=side?s.Hl[e]:s.Hk[e];
+        w.target.set_size(H.n_rows,H.n_cols);
+        for(arma::uword j=0;j<H.n_cols;++j)for(arma::uword i=0;i<H.n_rows;++i)
+          w.target(i,j)=(2*s.a[k][i]-1)*H(i,j);
+        multiply_into<true,false>(Q,w.target,w.projected);
+        w.coefficient.set_size(w.projected.n_rows,w.projected.n_cols);
+        for(arma::uword j=0;j<w.projected.n_cols;++j)for(arma::uword i=0;i<w.projected.n_rows;++i)
+          w.coefficient(i,j)=((side?z.St(j,i):z.St(i,j))+shift*w.projected(i,j))/(side?den[e](j,i):den[e](i,j));
+        if(Q.n_rows==Q.n_cols)multiply_into<false,false>(Q,w.coefficient,current);
+        else {
+          w.correction=w.coefficient-w.projected;
+          multiply_into<false,false>(Q,w.correction,current);
+          const mat& rem=side?reml[e]:remk[e];
+          for(arma::uword j=0;j<current.n_elem;++j)current[j]+=w.target[j]+rem[j]/shift;
+        }
+        if(check && ctl.history) {
+          double quad=0,linear=0;
+          for(arma::uword j=0;j<w.coefficient.n_cols;++j)for(arma::uword i=0;i<w.coefficient.n_rows;++i) {
+            const double c=w.coefficient(i,j);quad+=(side?z.D(j,i):z.D(i,j))*c*c;
+            linear+=(side?z.St(j,i):z.St(i,j))*c;
+          }
+          if(Q.n_cols<Q.n_rows)linear+=arma::accu((side?reml[e]:remk[e])%current);
+          objective+=.25*quad-.5*linear;
+        }
+        for(arma::uword j=0;j<H.n_cols;++j)for(arma::uword i=0;i<H.n_rows;++i) {
+          const double old=H(i,j),c=current(i,j),v=alpha*c+(1-alpha*s.a[k][i])*old;
+          nw[k][i]+=v*v;
+          if(check){const double d=v-old;nd[k][i]+=d*d;wd[k][i]+=v*d;nc[k][i]+=c*c;}
+          H(i,j)=v;
+        }
+      }
+    }
+    double rp2=0,rd2=0,nc2=0,nz2=0,ny2=0;
+    for(unsigned k=0;k<K;++k)for(arma::uword i=0;i<s.a[k].n_elem;++i) {
+      const double ao=s.a[k][i],old=s.hnull[k][i];
+      const double c=(2*ao-1)*old+1/shift,v=alpha*c+(1-alpha*ao)*old,d=v-old;
+      nw[k][i]+=v*v*null2[k][i];
+      if(check) {
+        nd[k][i]+=d*d*null2[k][i];wd[k][i]+=v*d*null2[k][i];nc[k][i]+=c*c*null2[k][i];
+        if(ctl.history)objective-=.5*c*null2[k][i];
+      }
+      s.hnull[k][i]=v;
+      const double an=std::max(0.0,1-ctl.penalty/out.mu/std::max(std::sqrt(nw[k][i]),std::numeric_limits<double>::epsilon()));
+      if(check) {
+        const double delta=ao-an;
+        rp2+=std::max(0.0,delta*delta*nw[k][i]+(1/alpha-ao)*(1/alpha-ao)*nd[k][i]+2*delta*(1/alpha-ao)*wd[k][i]);
+        rd2+=std::max(0.0,delta*delta*nw[k][i]+ao*ao*nd[k][i]-2*delta*ao*wd[k][i]);
+        nc2+=nc[k][i];nz2+=an*an*nw[k][i];ny2+=(1-an)*(1-an)*nw[k][i];
+        if(ctl.history)objective+=ctl.penalty*std::sqrt(nc[k][i]);
+      }
+      s.a[k][i]=an;
+    }
+    out.iterations=it;
+    if(check) {
+      out.primal=std::sqrt(rp2);out.dual=out.mu*std::sqrt(rd2);
+      out.eps_primal=std::sqrt(2*p.q)*ctl.abs_tol+ctl.rel_tol*std::max(std::sqrt(nc2),std::sqrt(nz2));
+      out.eps_dual=std::sqrt(2*p.q)*ctl.abs_tol+ctl.rel_tol*out.mu*std::sqrt(ny2);
+      if(ctl.history)out.history.push_back({{double(it),objective,out.primal,out.dual,out.eps_primal,out.eps_dual,out.mu}});
+      if(!std::isfinite(out.primal)||!std::isfinite(out.dual))break;
+      if(out.primal<=out.eps_primal && out.dual<=out.eps_dual){out.converged=true;break;}
+      if(ctl.adaptive && it%ctl.adapt_every==0) {
+        // Relative residual balancing changes only ADMM's numerical penalty.
+        // Stop tests above keep the original full-space absolute/relative tolerances.
+        const double eps=std::numeric_limits<double>::epsilon();
+        const double nr=out.primal/std::max(std::max(std::sqrt(nc2),std::sqrt(nz2)),eps);
+        const double ns=out.dual/std::max(out.mu*std::sqrt(ny2),eps);
+        double factor=1;
+        if(nr>ctl.balance_ratio*std::max(ns,eps))factor=ctl.scale_factor;
+        else if(ns>ctl.balance_ratio*std::max(nr,eps))factor=1/ctl.scale_factor;
+        if(factor!=1) {
+          out.mu*=factor;
+          std::vector<vec> scale;for(const vec& a:s.a)scale.push_back(a+(1-a)/factor);
+          for(unsigned e=0;e<E;++e){s.Hk[e].each_col()%=scale[p.edges[e].k];s.Hl[e].each_col()%=scale[p.edges[e].l];}
+          for(unsigned k=0;k<K;++k){s.hnull[k]%=scale[k];s.a[k]/=scale[k];}
+        }
+      }
+      if(progress && (it==1 || it%100==0))progress(it,out.primal,out.dual,out.eps_primal,out.eps_dual);
+    }
+  }
+  const auto start=std::chrono::steady_clock::now();
+  std::vector<vec> an=s.a;
+  out.directed_norms=null2;
+  for(unsigned k=0;k<K;++k)out.directed_norms[k]%=arma::square(s.hnull[k]);
+  for(unsigned e=0;e<E;++e) {
+    out.directed_norms[p.edges[e].k]+=arma::sum(arma::square(s.Hk[e]),1);
+    out.directed_norms[p.edges[e].l]+=arma::sum(arma::square(s.Hl[e]),1);
+  }
+  for(unsigned k=0;k<K;++k)for(arma::uword i=0;i<an[k].n_elem;++i) {
+    out.directed_norms[k][i]=s.a[k][i]*std::sqrt(out.directed_norms[k][i]);
+    if(out.directed_norms[k][i]<=group_zero_tol)an[k][i]=0;
+  }
+  s.C.resize(E);
+  for(unsigned e=0;e<E;++e) {
+    const Edge& z=p.edges[e];
+    for(unsigned side=0;side<2;++side) {
+      const unsigned k=side?z.l:z.k,l=side?z.k:z.l;
+      const mat& R=p.Q[l];const mat& H=side?s.Hl[e]:s.Hk[e];
+      w.target=H;
+      if(R.n_cols<R.n_rows) {
+        if(side)multiply_into<true,false>(z.S,R,rhs);else multiply_into<false,false>(z.S,R,rhs);
+        for(arma::uword j=0;j<w.target.n_cols;++j)for(arma::uword i=0;i<w.target.n_rows;++i)
+          w.target(i,j)=(w.target(i,j)-s.hnull[k][i]*rhs(i,j))*an[k][i];
+      } else w.target.each_col()%=an[k];
+      multiply_into<false,true>(w.target,R,current);
+      if(R.n_cols<R.n_rows)for(arma::uword j=0;j<current.n_cols;++j)for(arma::uword i=0;i<current.n_rows;++i)
+        current(i,j)+=an[k][i]*s.hnull[k][i]*(side?z.S(j,i):z.S(i,j));
+      if(!side)s.C[e]=current/2;
+      else for(arma::uword j=0;j<s.C[e].n_cols;++j)for(arma::uword i=0;i<s.C[e].n_rows;++i)s.C[e](i,j)+=current(j,i)/2;
+    }
+    for(double& x:s.C[e])if(std::abs(x)<entry_zero_tol)x=0;
+    if(!keep_state){s.Hk[e].reset();s.Hl[e].reset();}
+  }
+  out.symmetry_time=std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count();
+  out.state=std::move(s);return out;
+}
+
 } // namespace egcar_fast
 #endif
 
@@ -473,10 +746,17 @@ Rcpp::List egcar_native_solve(Rcpp::List context, Rcpp::List state,
   ctl.max_iter=Rcpp::as<int>(controls["max_iter"]); ctl.check_every=Rcpp::as<int>(controls["check_every"]);
   ctl.adapt_every=Rcpp::as<int>(controls["adapt_every"]); ctl.adaptive=Rcpp::as<bool>(controls["adaptive"]);
   ctl.history=Rcpp::as<bool>(controls["history"]);
-  State s; s.C=egcar_mat_list(state["C"]);
+  const bool direct=group && controls.containsElementNamed("direct_l21") && Rcpp::as<bool>(controls["direct_l21"]);
+  const bool rotated=direct && controls.containsElementNamed("rotated_l21") && Rcpp::as<bool>(controls["rotated_l21"]);
+  State s; if(!direct) s.C=egcar_mat_list(state["C"]);
   if(group) {
     if(state.containsElementNamed("a")) {
-      s.Hk=egcar_mat_list(state["Hk"]); s.Hl=egcar_mat_list(state["Hl"]);
+      if(rotated && state.containsElementNamed("cold") && Rcpp::as<bool>(state["cold"])) {
+        for(const Edge& z:p.edges) {
+          s.Hk.emplace_back(p.sizes[z.k],p.Q[z.l].n_cols,arma::fill::zeros);
+          s.Hl.emplace_back(p.sizes[z.l],p.Q[z.k].n_cols,arma::fill::zeros);
+        }
+      } else {s.Hk=egcar_mat_list(state["Hk"]); s.Hl=egcar_mat_list(state["Hl"]);}
       Rcpp::List a=state["a"];
       if(a.size()!=static_cast<int>(p.sizes.size())) Rcpp::stop("Invalid group multiplier list.");
       for(unsigned k=0;k<p.sizes.size();++k) {
@@ -497,12 +777,35 @@ Rcpp::List egcar_native_solve(Rcpp::List context, Rcpp::List state,
          values[e].n_cols!=p.sizes[p.edges[e].l] || !values[e].is_finite())
         Rcpp::stop("Invalid native warm-start matrix.");
   };
-  check_state(s.C);
-  if(group && !s.a.empty()) {check_state(s.Hk);check_state(s.Hl);}
-  else if(group) {check_state(s.Gk);check_state(s.Gl);check_state(s.Vk);check_state(s.Vl);}
-  else {check_state(s.Z);check_state(s.H);}
-  Result fit=solve(p,std::move(s),ctl,group,egcar_interrupt,verbose?egcar_progress:nullptr);
+  if(rotated) {
+    if(s.Hk.size()!=p.edges.size() || s.Hl.size()!=p.edges.size())Rcpp::stop("Invalid rotated edge state length.");
+    for(unsigned e=0;e<p.edges.size();++e) {
+      const Edge& z=p.edges[e];
+      if(s.Hk[e].n_rows!=p.sizes[z.k] || s.Hk[e].n_cols!=p.Q[z.l].n_cols ||
+         s.Hl[e].n_rows!=p.sizes[z.l] || s.Hl[e].n_cols!=p.Q[z.k].n_cols ||
+         !s.Hk[e].is_finite() || !s.Hl[e].is_finite())Rcpp::stop("Invalid rotated L21 warm-start matrix.");
+    }
+    if(state.containsElementNamed("hnull")) {
+      Rcpp::List h=state["hnull"];if(h.size()!=sizes.size())Rcpp::stop("Invalid nullspace state length.");
+      for(unsigned k=0;k<p.sizes.size();++k) {
+        vec v=Rcpp::as<vec>(h[k]);if(v.n_elem!=p.sizes[k] || !v.is_finite())Rcpp::stop("Invalid nullspace state.");
+        s.hnull.push_back(std::move(v));
+      }
+    } else for(unsigned pk:p.sizes)s.hnull.emplace_back(pk,arma::fill::zeros);
+  }
+  if(!direct) check_state(s.C);
+  if(group && !s.a.empty() && !rotated) {check_state(s.Hk);check_state(s.Hl);}
+  else if(group && s.a.empty()) {check_state(s.Gk);check_state(s.Gl);check_state(s.Vk);check_state(s.Vl);}
+  else if(!group) {check_state(s.Z);check_state(s.H);}
+  Result fit=rotated?solve_rotated_l21(p,std::move(s),ctl,
+      Rcpp::as<double>(controls["group_zero_tol"]),Rcpp::as<double>(controls["entry_zero_tol"]),
+      Rcpp::as<bool>(controls["zero_certificate"]),Rcpp::as<bool>(controls["keep_state"]),egcar_interrupt,verbose?egcar_progress:nullptr):direct?solve_direct_l21(p,std::move(s),ctl,egcar_interrupt,verbose?egcar_progress:nullptr):
+    solve(p,std::move(s),ctl,group,egcar_interrupt,verbose?egcar_progress:nullptr);
   Rcpp::List outstate;
+  if(rotated && !Rcpp::as<bool>(controls["keep_state"])) {
+    std::vector<mat>().swap(fit.state.Hk);std::vector<mat>().swap(fit.state.Hl);
+    std::vector<vec>().swap(fit.state.hnull);std::vector<vec>().swap(fit.state.a);
+  }
   if (group) {
     Rcpp::List a(fit.state.a.size());
     for(unsigned k=0;k<fit.state.a.size();++k)
@@ -518,11 +821,16 @@ Rcpp::List egcar_native_solve(Rcpp::List context, Rcpp::List state,
       Rcpp::_["Z"] = egcar_matrix_list_to_R(fit.state.Z),
       Rcpp::_["H"] = egcar_matrix_list_to_R(fit.state.H));
   }
+  if(rotated) {
+    Rcpp::List h(fit.state.hnull.size());
+    for(unsigned k=0;k<fit.state.hnull.size();++k)h[k]=Rcpp::NumericVector(fit.state.hnull[k].begin(),fit.state.hnull[k].end());
+    outstate["hnull"]=h;
+  }
   Rcpp::NumericMatrix hist(fit.history.size(),7);
   for(unsigned i=0;i<fit.history.size();++i) for(unsigned j=0;j<7;++j) hist(i,j)=fit.history[i][j];
   if(!std::isfinite(fit.primal)||!std::isfinite(fit.dual)) Rcpp::warning("ADMM produced a non-finite residual.");
   return Rcpp::List::create(Rcpp::_ ["state"]=outstate,Rcpp::_ ["converged"]=fit.converged,
-      Rcpp::_ ["iterations"]=fit.iterations,Rcpp::_ ["primal"]=fit.primal,Rcpp::_ ["dual"]=fit.dual,
+      Rcpp::_ ["iterations"]=fit.iterations,Rcpp::_["symmetrization_time"]=fit.symmetry_time, Rcpp::_["directed_norms"]=fit.directed_norms, Rcpp::_ ["primal"]=fit.primal,Rcpp::_ ["dual"]=fit.dual,
       Rcpp::_ ["eps_primal"]=fit.eps_primal,Rcpp::_ ["eps_dual"]=fit.eps_dual,
       Rcpp::_ ["mu"]=fit.mu,Rcpp::_ ["history"]=hist,
       Rcpp::_ ["matrix_api"]=3);

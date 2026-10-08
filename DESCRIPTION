@@ -2,12 +2,12 @@ Package: egcar
 Type: Package
 Title: Accelerated Sparse Generalized Correlation Analysis via
         Regression
-Version: 0.2.16
+Version: 0.2.18
 Authors@R: c(person("EGCAR", "Contributors", role = c("aut", "cre"),
     email = "maintainer@example.org"),
     person("Claire", "Donnat", role = "cph",
     comment = "Bundled MIT-licensed initializer helpers"))
-Description: Fits separate entrywise and view-wise row-group sparse generalized
+Description: Fits separate entrywise and global row-group sparse generalized
     correlation estimators using accelerated alternating direction updates,
     cached spectral reductions, and localized loading extraction. Includes
     direct-penalty cross-validation, rate-scaled fits, reusable common folds,
@@ -30,4 +30,4 @@ Roxygen: list(markdown = FALSE)
 Author: EGCAR Contributors [aut, cre],
   Claire Donnat [cph] (Bundled MIT-licensed initializer helpers)
 Maintainer: EGCAR Contributors <maintainer@example.org>
-Packaged: 2026-09-29 02:30:35 UTC; root
+Packaged: 2026-10-08 09:37:13 UTC; root

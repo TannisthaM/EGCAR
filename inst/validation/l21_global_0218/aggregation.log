@@ -1,0 +1,3 @@
+Prepared /tmp/RtmpjeELzj/aggregate_checks_31323e7021/dataset_001.rds; new_tier_signal_common_random_numbers
+PASS: committed outcomes, all expected settings including missing fits, averages, and error/runtime plots
+PASS: combined tier error/time-vs-p plots and all expected cells

@@ -20,10 +20,10 @@ test_that("compressed ADMM matches independent dense updates, including adaptive
       for (init in list(NULL, legacy)) {
         args$init <- init
         before <- serialize(init, NULL)
-        expected <- do.call(ref$fit_l21_admm, args)
+        expected <- do.call(ref$fit_l21_admm_legacy, args)
         for (backend in c("cpp", "R")) {
           e <- pv(".egcar_engine")(egcar_control(backend = backend))
-          actual <- do.call(e$fit_l21_admm, c(args, list(compact_state = TRUE)))
+          actual <- do.call(e$fit_l21_admm_legacy, c(args, list(compact_state = TRUE)))
           expect_true(all(c("C", "Hk", "Hl", "a") %in% names(actual)))
           expect_false(any(c("G", "V", "Gk", "Gl", "Vk", "Vl") %in% names(actual)))
           old <- e$egcar_expand_group_state(z, actual)
@@ -40,7 +40,7 @@ test_that("compressed ADMM matches independent dense updates, including adaptive
   }
 })
 
-test_that("public compressed state supports cross-backend warm starts and saves two arrays", {
+test_that("global row state supports cross-backend warm starts and keeps compact state", {
   sim <- egcar_simulate(n = 18, p_list = c(17, 12, 9), active_per_view = 3, seed = 21202)
   prep <- egcar_prepare(sim$views)
   ctl <- egcar_control(max_iter = 35L, abs_tol = 0, rel_tol = 0)
@@ -53,7 +53,8 @@ test_that("public compressed state supports cross-backend warm starts and saves 
   before <- serialize(s, NULL)
   ctl$compact_state <- FALSE
   old <- egcar_fit(prep, 1L, "l21", .01, ctl)
-  expect_true(all(c("G", "V") %in% names(old$solver)))
+  expect_true(all(c("Hk", "Hl", "a", "formulation") %in% names(old$solver)))
+  expect_null(old$solver$G); expect_null(old$solver$V)
   for (backend in c("cpp", "R", "reference")) {
     ctl$backend <- backend
     a <- egcar_fit(prep, 1L, "l21", .005, ctl, init = fit)
@@ -64,7 +65,7 @@ test_that("public compressed state supports cross-backend warm starts and saves 
   }
   expect_identical(serialize(fit$solver, NULL), before)
   bad <- fit$solver; bad$a[[1L]][[1L]] <- 2
-  expect_error(egcar_fit(prep, 1L, "l21", .01, init = bad), "row multipliers")
+  expect_error(egcar_fit(prep, 1L, "l21", .01, init = bad), "row multiplier")
   bad <- fit$solver; bad$Hl <- NULL
   expect_error(egcar_fit(prep, 1L, "l21", .01, init = bad), "Hk, Hl and a")
 })

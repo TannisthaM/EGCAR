@@ -1,0 +1,6 @@
+          method status fit_time total_time cv_workers
+1 EGCAR-L21-rate     ok     0.05       0.05          1
+        method status fit_time total_time cv_workers
+1 EGCAR-L21-CV     ok    0.004      0.181          5
+PASS: L21 rate and five-fold parallel CV; all six grids and seed rules loaded.
+PASS: five distinct parallel worker processes observed.

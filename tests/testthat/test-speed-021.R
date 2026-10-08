@@ -17,8 +17,10 @@ test_that("compiled EGCAR preserves full-space reference updates and inputs", {
       ctl$backend <- "R"
       b <- egcar_fit(x, rank = 1L, penalty = penalty, lambda = 0.01, control = ctl)
       fields <- if (penalty == "l11") c("C", "Z", "H") else c("C", "Hk", "Hl", "a")
+      expanded <- if(penalty=="l21" && identical(a$solver$state_basis,"right_spectral"))
+        getFromNamespace("egcar_l21_expand_rotated","egcar")(a$solver,x$prep$egcar_context) else a$solver
       for (nm in fields) {
-        aa <- unlist(a$solver[[nm]], use.names = FALSE)
+        aa <- unlist(if(nm %in% c("Hk","Hl")) expanded[[nm]] else a$solver[[nm]], use.names = FALSE)
         bb <- unlist(b$solver[[nm]], use.names = FALSE)
         expect_equal(aa, bb, tolerance = 1e-8, info = paste(i, penalty, nm))
       }

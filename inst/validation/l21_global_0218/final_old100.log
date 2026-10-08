@@ -1,0 +1,6 @@
+<environment: namespace:RSpectra>
+          used (Mb) gc trigger  (Mb) max used  (Mb)
+Ncells 1450123 77.5    2716050 145.1  2716050 145.1
+Vcells 2499986 19.1    8388608  64.0  4382839  33.5
+old 100 3 150 median_solver 0.45 median_loading 0.086 median_seconds 0.536 iterations 50 converged TRUE 
+peak_rss_kib 203920

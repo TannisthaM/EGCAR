@@ -574,6 +574,30 @@ make_validation_covariance <- function(centered_views) {
     init <- init$solver
   }
   if (!is.list(init)) stop("init must be a fit or an ADMM-state list.")
+  if(penalty=="l21" && identical(init$state_basis,"right_spectral")) {
+    if(!identical(init$formulation,"global_rows_posthoc") || !all(c("Hk","Hl","a","hnull") %in% names(init)))
+      stop("A right-spectral L21 warm start must contain Hk, Hl and a, plus hnull.")
+    z<-egcar_get_context(prep);E<-seq_along(z$edge_k)
+    for(nm in c("Hk","Hl")) {
+      if(!is.list(init[[nm]]) || length(init[[nm]])!=length(E))stop("Invalid rotated warm-start list.")
+      for(e in E) {
+        k<-if(nm=="Hk")z$edge_k[e] else z$edge_l[e]
+        l<-if(nm=="Hk")z$edge_l[e] else z$edge_k[e]
+        M<-init[[nm]][[e]]
+        if(!is.matrix(M) || !is.numeric(M) || !identical(dim(M),c(z$p_list[k],ncol(z$Q[[l]]))) || any(!is.finite(M)))
+          stop("Invalid rotated warm-start matrix.")
+      }
+    }
+    for(nm in c("a","hnull")) {
+      if(!is.list(init[[nm]]) || length(init[[nm]])!=length(z$p_list))stop("Invalid rotated row state.")
+      for(k in seq_along(z$p_list)) {
+        v<-init[[nm]][[k]]
+        if(!is.numeric(v) || !is.null(dim(v)) || length(v)!=z$p_list[k] || any(!is.finite(v)))stop("Invalid rotated row vector.")
+        if(nm=="a" && any(v<0|v>1))stop("Invalid rotated row multiplier.")
+      }
+    }
+    return(init)
+  }
   endpoints <- c("Gk", "Gl", "Vk", "Vl")
   compressed <- c("Hk", "Hl", "a")
   has_compressed <- any(compressed %in% names(init))
@@ -618,6 +642,8 @@ make_validation_covariance <- function(centered_views) {
 
 # Keep compressed endpoint state between group CV candidates and path fits.
 egcar_warm_state <- function(raw, group) {
+  if (group && identical(raw$formulation, "global_rows_posthoc"))
+    return(raw[intersect(c("Hk","Hl","a","hnull","formulation","state_basis"),names(raw))])
   fields <- if (!group) c("C", "Z", "H") else
     if (all(c("Hk", "Hl", "a") %in% names(raw))) c("C", "Hk", "Hl", "a") else
     if (all(c("Gk", "Gl", "Vk", "Vl") %in% names(raw)))

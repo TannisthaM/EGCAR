@@ -1,4 +1,6 @@
-# Frozen by tools/calibrate_l21_rate_0214.R from 36 independent pilot cases.
+# The 0.2.14 multiplier is retained for reproducible comparisons. It has NOT
+# been recalibrated for the 0.2.17 directed/post-symmetrized estimator.
+# Originally calibrated by tools/calibrate_l21_rate_0214.R on 36 pilot cases.
 # See inst/validation/l21_rate_0214/pilot_summary.csv and the calibration report.
 # This is the best tested held-out-score coefficient, not a sparsity guarantee.
 .egcar_l21_rate_multiplier <- 0.05

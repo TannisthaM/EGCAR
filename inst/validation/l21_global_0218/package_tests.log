@@ -1,0 +1,57 @@
+compressed-operator-0212: .......................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+config-compat-025: ....
+efficiency-timing-0215: .................................................................
+installed-examples: ............
+l21-global-0217: native/R + history + adaptive mu + warm start: 4,5,3 n= 40 PASS
+native/R + history + adaptive mu + warm start: 15,12,14 n= 7 PASS
+native/R + history + adaptive mu + warm start: 8,8,8,8,8 n= 40 PASS
+closed-form global row penalty + final symmetry: PASS
+L11 independent reference equivalence: PASS
+ALL DIRECT SOLVER CHECKS PASSED
+.
+l21-rate-0214: ........................................Output: /tmp/RtmpVrL6FX/egcar-rate-664fc16c
+CV workers per method: 1 of 1 requested; folds=2; repetitions=1
+
+rep=1  r=1  n=18
+  selected L11 coefficient: rho_e=NA; status=no_valid_cv
+  selected L21 coefficient: lambda_g=NA; status=no_valid_cv
+
+Completed. Main output file:
+/tmp/RtmpVrL6FX/egcar-rate-664fc16c/egcar_simulation.rds 
+.....
+l21-rotated-0218: ......................................
+matrix-dim-hardening-024: .....
+memory-023: .............
+namespace: .....
+native-interface-022: ...............
+performance-0211: ...........The reference l11 solver does not record objective histories.
+................The reference l11 solver does not record objective histories.
+...............The reference l11 solver does not record objective histories.
+......................................................................................
+regression: .Core package checks passed.
+.
+revision-020: ............Output: /tmp/RtmpVrL6FX/egcar-test-62ed69fbc
+CV workers per method: 1 of 1 requested; folds=2; repetitions=1
+
+rep=1  r=1  n=18
+  selected L11 coefficient: rho_e=NA; status=no_valid_cv
+  selected L21 coefficient: lambda_g=NA; status=no_valid_cv
+
+Completed. Main output file:
+/tmp/RtmpVrL6FX/egcar-test-62ed69fbc/egcar_simulation.rds 
+.....
+sgca-paper-0216: ...........................................................................................Output: /tmp/RtmpVrL6FX/sgca-paper-study-61abd4da6
+CV workers per method: 1 of 1 requested; folds=2; repetitions=1
+
+rep=1  r=1  n=18
+  SGCA: paper CV on 2 shared folds with 1 allocated worker(s)...
+    sgca_k=5, sgca_rho=NA, sgca_lambda=0.01; mean loss=-2.18463; tune=0.01s; fit=0.00s; status=ok
+  selected L11 coefficient: rho_e=NA; status=no_valid_cv
+  selected L21 coefficient: lambda_g=NA; status=no_valid_cv
+
+Completed. Main output file:
+/tmp/RtmpVrL6FX/sgca-paper-study-61abd4da6/egcar_simulation.rds 
+.......
+speed-021: .................................................................
+
+══ DONE ════════════════════════════════════════════════════════════════════════

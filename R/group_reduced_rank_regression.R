@@ -1,6 +1,6 @@
 # View-wise l21-only EGCAR and incident-edge row-group operations.
 
-fit_l21_admm <- function(prep, lambda_g, mu_g = 1, max_iter = 2000L,
+fit_l21_admm_legacy <- function(prep, lambda_g, mu_g = 1, max_iter = 2000L,
     abs_tol = 1e-5, rel_tol = 1e-4, adaptive_mu = TRUE, balance_ratio = 10,
     scale_factor = 2, adapt_every = 10L, group_zero_tol = 1e-8,
     entry_zero_tol = 1e-10, init = NULL, keep_history = FALSE,

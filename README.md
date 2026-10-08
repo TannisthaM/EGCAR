@@ -1,3 +1,70 @@
+# EGCAR 0.2.18: compact global-row L21
+
+The L21 path fits `lambda * sum_i ||C[i, ]||_2` on directed off-diagonal
+coefficients, then symmetrizes its sparse ADMM estimate before computing
+loading vectors. L11 and the comparison-method algorithms are unchanged.
+
+The new native path uses right spectral coordinates, preserves genuine
+nullspace components in a scalar-per-row representation, uses over-relaxation
+alpha=1.6 and relative-residual balancing, allocates cold states natively, and
+releases unneeded states during final reconstruction. Full-space residual
+tolerances and iteration caps are retained. CV still parallelizes folds.
+
+This supersedes the slower 0.2.17 implementation. Tested Gaussian fits were
+faster than 0.2.16, with lower peak RSS for larger dimensions, but the seeded
+p=500 Toeplitz cold-start fit was roughly tied in time and used more peak RSS.
+No unconditional faster/no-more-memory guarantee is claimed. Read the complete
+measurements in `inst/doc/VALIDATION_0218.md`.
+
+The old sum of view-group norms already equals global row L21 on symmetric C.
+Postponing symmetry changes the estimator, and final projection can expand row
+support. The rate multiplier 0.05 is retained without recalibration.
+
+See `inst/doc/L21_IMPLEMENTATION_0218.md` for the exact representation and
+`inst/doc/L21_GLOBAL_0218.md` for seed-preserving cluster reruns. Native warm
+states now also carry `hnull` and `state_basis="right_spectral"`. The material
+below documents historical releases; this section governs current L21 behavior.
+
+---
+
+# EGCAR 0.2.17: global row-L21 with final symmetrization
+
+This release changes only the L21 estimator. It fits a directed coefficient
+matrix with the global row penalty `lambda * sum_i ||C[i, ]||_2`, then returns
+`(Z + t(Z))/2` from its sparse ADMM copy before extracting the loading vectors.
+Zero diagonal blocks are retained. L11 and all comparison methods are unchanged.
+
+The former sum of view-group norms already equals global row L21 on a
+symmetric C. Delaying symmetry changes the estimator. Convergence flags describe
+the directed convex problem before the final projection; the symmetric result
+is not claimed to solve the former constrained problem. Row sparsity can expand
+when the estimate is symmetrized.
+
+The native working state stores two directed edge arrays and one scalar per row,
+versus three edge arrays previously. Covariance caches and scratch are additional.
+There is no global dense C allocation for the final symmetry step. A KKT zero
+certificate skips ADMM when the penalty already guarantees the zero solution.
+This produces an invalid-loading outcome when positive loading directions do
+not exist, rather than silently lowering rank or changing the penalty.
+
+Two directed updates can cost more than the old symmetric update. The measured
+rate-fit examples are slower. Reduced iterate storage is not a guarantee of
+lower peak RSS. See `inst/doc/L21_GLOBAL_0217.md` and the supplied validation
+report for the model, seed-preserving experiment scripts, and measured limits.
+
+Use fresh L21 fits as warm starts; 0.2.16 L21 states are rejected. New states
+carry `formulation="global_rows_posthoc"`. Compact state is retained even when
+`compact_state=FALSE`. The rate multiplier 0.05 is kept for comparison and has
+not been recalibrated for this estimator.
+
+`fit_time` includes ADMM, final symmetry, and loading extraction. Five-fold
+parallel CV and the existing partial loading eigensolver are retained.
+
+The material below documents prior releases and their unchanged APIs; its old
+L21 objective/state description is superseded by the text above.
+
+---
+
 # EGCAR 0.2.16: paper-based SGCA
 
 SGCA now implements Gao and Ma's Algorithm 1. Read

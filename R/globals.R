@@ -109,6 +109,8 @@ ALIGN_EXTERNAL_BLOCK_SIGNS <- TRUE
   "egcar_run_solver",
   "fit_l11_admm",
   "fit_l21_admm",
+  "egcar_l21_direct_R", "fit_l21_full_admm", "egcar_l21_expand_rotated",
+  "fit_l21_admm_legacy",
   "validation_loss",
   "validate_loading_matrix",
   "full_covariance_from_prep",

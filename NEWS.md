@@ -1,3 +1,26 @@
+# egcar 0.2.18
+
+* Compress directed L21 updates in right spectral coordinates while retaining
+  exact complementary components with one scalar per global row.
+* Use over-relaxation alpha=1.6 and relative-residual balancing without relaxing
+  full-space stop tests or changing the statistical penalty coefficient.
+* Allocate cold states natively and release discarded edges during reconstruction.
+* Preserve the post-ADMM symmetry step and full timing through loading vectors.
+* Add numerical nullspace/warm-state tests and a report of both improvements and
+  remaining runtime/peak-RSS limitations. No universal performance claim.
+* Supply L21-only tier/consistency scripts with original seeds and all requested
+  ranks, signals and repetitions; original tier scripts had signal 0.8 only.
+
+# egcar 0.2.17
+
+* L21 now fits a directed global row-norm problem and symmetrizes only after ADMM.
+* Native iterate storage is Hk/Hl/a (2q+P), with one edge scratch buffer.
+* A sufficient KKT zero certificate avoids unnecessary zero-solution iterations.
+* L11, comparison methods, simulation, error metrics, and loading EVD are unchanged.
+* Full fit timing includes final symmetry and loading extraction.
+* Old L21 warm starts are rejected; the 0.05 rate coefficient is retained without recalibration.
+* This estimator change is not claimed to improve runtime on every input.
+
 # egcar 0.2.16
 
 - Replace the SGCA backtracking variant by paper Algorithm 1 with fixed steps,

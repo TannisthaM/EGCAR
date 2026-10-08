@@ -1,0 +1,7 @@
+tier1 300 dataset/fold/population seeds and both method seeds: PASS
+tier2 150 dataset/fold/population seeds and both method seeds: PASS
+tier3 150 dataset/fold/population seeds and both method seeds: PASS
+consistency_K3 750 dataset/fold/population seeds and both method seeds: PASS
+consistency_K5 750 dataset/fold/population seeds and both method seeds: PASS
+consistency_K10 750 dataset/fold/population seeds and both method seeds: PASS
+2850 datasets, 5700 fits; ten independent replication seeds per setting: PASS

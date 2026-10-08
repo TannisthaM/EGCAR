@@ -1,0 +1,54 @@
+"file","context","test","nb","failed","skipped","error","warning","user","system","real","passed"
+"test-compressed-operator-0212.R","compressed-operator-0212","compressed ADMM matches independent dense updates, including adaptive mu and legacy starts",408,0,FALSE,FALSE,0,3.658,0.053,3.71,408
+"test-compressed-operator-0212.R","compressed-operator-0212","global row state supports cross-backend warm starts and keeps compact state",18,0,FALSE,FALSE,0,0.887,0.042,0.929,18
+"test-compressed-operator-0212.R","compressed-operator-0212","compact metric actions and native selected products match dense algebra",36,0,FALSE,FALSE,0,0.17,0.003,0.173999999999999,36
+"test-compressed-operator-0212.R","compressed-operator-0212","partial eigenpairs select largest algebraic values and never silently fall back",9,0,FALSE,FALSE,0,0.0739999999999998,0,0.0730000000000004,9
+"test-compressed-operator-0212.R","compressed-operator-0212","both penalties use the matrix-free loading path by default",32,0,FALSE,FALSE,0,0.439,0.004,0.443000000000001,32
+"test-config-compat-025.R","config-compat-025","legacy experiment configs receive retention defaults",4,0,FALSE,FALSE,0,0.0190000000000001,0,0.0179999999999998,4
+"test-efficiency-timing-0215.R","efficiency-timing-0215","streamed edge reductions match full operators without input mutation",12,0,FALSE,FALSE,0,0.0579999999999998,0.004,0.0609999999999999,12
+"test-efficiency-timing-0215.R","efficiency-timing-0215","reduced population truth matches a dense eigenproblem",27,0,FALSE,FALSE,0,0.12,0.00800000000000001,0.128,27
+"test-efficiency-timing-0215.R","efficiency-timing-0215","fit timers include a deliberately delayed loading calculation",7,0,FALSE,FALSE,0,0.199,0,0.258999999999999,7
+"test-efficiency-timing-0215.R","efficiency-timing-0215","convergence eligibility is explicit and optional",5,0,FALSE,FALSE,0,0.0179999999999998,0,0.0179999999999998,5
+"test-efficiency-timing-0215.R","efficiency-timing-0215","direct scoring reuses prediction and matches covariance scoring",2,0,FALSE,FALSE,0,0.0180000000000007,0,0.0179999999999998,2
+"test-efficiency-timing-0215.R","efficiency-timing-0215","regularization paths retain numerical results while sharing factors",3,0,FALSE,FALSE,0,0.0549999999999997,0,0.0549999999999997,3
+"test-efficiency-timing-0215.R","efficiency-timing-0215","experiment metrics agree with dense operator diagnostics",4,0,FALSE,FALSE,0,0.0239999999999991,0,0.024,4
+"test-efficiency-timing-0215.R","efficiency-timing-0215","study CV timers include final loading and successful summaries filter failures",5,0,FALSE,FALSE,0,0.161,0,0.401,5
+"test-installed-examples.R","installed-examples","all original runnable examples remain installed",12,0,FALSE,FALSE,0,0.0259999999999998,0,0.0259999999999998,12
+"test-l21-global-0217.R","l21-global-0217","global row solver matches explicit ADMM and a closed-form solution",1,0,FALSE,FALSE,0,0.654,0.012,0.667,1
+"test-l21-rate-0214.R","l21-rate-0214","L21 defaults match the frozen pilot while explicit multipliers are preserved",13,0,FALSE,FALSE,0,0.0640000000000001,0,0.0640000000000001,13
+"test-l21-rate-0214.R","l21-rate-0214","the zero certificate matches the analytic two-scalar optimum",8,0,FALSE,FALSE,0,0.0259999999999998,0.004,0.0299999999999994,8
+"test-l21-rate-0214.R","l21-rate-0214","the tiled bound includes both endpoints and partial final tiles",1,0,FALSE,FALSE,0,0.0110000000000001,0,0.0119999999999996,1
+"test-l21-rate-0214.R","l21-rate-0214","experiment status distinguishes solver convergence and loading validity",18,0,FALSE,FALSE,0,0.0659999999999998,0,0.0649999999999995,18
+"test-l21-rate-0214.R","l21-rate-0214","the experiment writes invalid L21-rate diagnostics to its failure CSV",5,0,FALSE,FALSE,0,0.471000000000001,0.004,0.476000000000001,5
+"test-l21-rotated-0218.R","l21-rotated-0218","rotated L21 preserves genuine covariance nullspace contributions",30,0,FALSE,FALSE,0,0.221,0,0.220999999999998,30
+"test-l21-rotated-0218.R","l21-rotated-0218","zero certificates and compact states preserve the requested loading rank",8,0,FALSE,FALSE,0,0.0339999999999989,0,0.0329999999999995,8
+"test-matrix-dim-hardening-024.R","matrix-dim-hardening-024","legacy dimensionless edge blocks are restored safely",5,0,FALSE,FALSE,0,0.0139999999999993,0,0.0139999999999993,5
+"test-memory-023.R","memory-023","memory-first experiment defaults are compact",7,0,FALSE,FALSE,0,0.0220000000000002,0,0.0220000000000002,7
+"test-memory-023.R","memory-023","memory retention flags can be restored explicitly",6,0,FALSE,FALSE,0,0.016,0,0.0149999999999988,6
+"test-namespace.R","namespace","every relocated numerical-engine function resolves in the namespace",3,0,FALSE,FALSE,0,0.00999999999999979,0,0.00999999999999979,3
+"test-namespace.R","namespace","all fitting and comparison entry points remain exported",2,0,FALSE,FALSE,0,0.00699999999999967,0,0.00600000000000023,2
+"test-native-interface-022.R","native-interface-022","solver state dimensions are checked, not silently reconstructed",7,0,FALSE,FALSE,0,0.0239999999999991,0,0.0229999999999997,7
+"test-native-interface-022.R","native-interface-022","a mismatched DLL fails before row norms or loading extraction",1,0,FALSE,FALSE,0,0.0109999999999992,0,0.00999999999999979,1
+"test-native-interface-022.R","native-interface-022","the native matrix interface and signal-0.8 rank-1/2/5 paths work",6,0,FALSE,FALSE,0,1.042,0.003,1.045,6
+"test-native-interface-022.R","native-interface-022","the focused matrix-interface example is installed and parseable",1,0,FALSE,FALSE,0,0.00399999999999956,0,0.00300000000000011,1
+"test-performance-0211.R","performance-0211","compact preparation preserves covariances and complete nullspace updates",47,0,FALSE,FALSE,0,0.328999999999999,0.004,0.334,47
+"test-performance-0211.R","performance-0211","data-space validation equals the original dense score",23,0,FALSE,FALSE,0,0.0600000000000005,0.00900000000000001,0.0690000000000008,23
+"test-performance-0211.R","performance-0211","cached full-support loading roots retain the ridge on the nullspace",16,0,FALSE,FALSE,0,0.0709999999999997,0.00399999999999998,0.0750000000000011,16
+"test-performance-0211.R","performance-0211","compact and public group warm starts give the same path",18,0,FALSE,FALSE,0,0.27,0,0.270000000000001,18
+"test-performance-0211.R","performance-0211","CV task environments contain only fitting inputs",2,0,FALSE,FALSE,0,0.00600000000000023,0,0.00600000000000023,2
+"test-performance-0211.R","performance-0211","wide-fold CV preserves selection against dense-reference fitting",6,0,FALSE,FALSE,0,0.198,0.004,0.202,6
+"test-performance-0211.R","performance-0211","loading-cache byte limits do not change fitted factors",4,0,FALSE,FALSE,0,0.0139999999999993,0,0.0140000000000011,4
+"test-performance-0211.R","performance-0211","compact fold payloads also work in multisession workers",12,0,FALSE,FALSE,0,0.645,0.064,2.9,12
+"test-regression.R","regression","the updated numerical and public-API regression suite passes",2,0,FALSE,FALSE,0,0.699,0.023,0.722999999999999,2
+"test-revision-020.R","revision-020","only separate EGCAR families are exposed and CV excludes zero",7,0,FALSE,FALSE,0,0.0299999999999994,0,0.0289999999999999,7
+"test-revision-020.R","revision-020","the SGCA initializer is bundled with all its required helpers",5,0,FALSE,FALSE,0,0.0429999999999993,0,0.0420000000000016,5
+"test-revision-020.R","revision-020","a tiny full experiment uses the configured methods and outputs",5,0,FALSE,FALSE,0,0.374000000000001,0.019,0.391,5
+"test-sgca-paper-0216.R","sgca-paper-0216","SGCA follows Algorithm 1 including rank-two thresholding and factor two",31,0,FALSE,FALSE,0,0.121,0,0.120999999999999,31
+"test-sgca-paper-0216.R","sgca-paper-0216","fixed paper iterations do not stop early or assert convergence",8,0,FALSE,FALSE,0,0.173999999999999,0,0.173999999999999,8
+"test-sgca-paper-0216.R","sgca-paper-0216","Fantope projection enforces trace equality even below the trace bound",22,0,FALSE,FALSE,0,0.0800000000000001,0,0.0790000000000006,22
+"test-sgca-paper-0216.R","sgca-paper-0216","paper CV recomputes rho per training sample and retains completion diagnostics",16,0,FALSE,FALSE,0,0.251999999999999,0.004,0.256,16
+"test-sgca-paper-0216.R","sgca-paper-0216","paper validation score uses test covariance and is distinct from common loss",6,0,FALSE,FALSE,0,0.0489999999999995,0,0.0489999999999995,6
+"test-sgca-paper-0216.R","sgca-paper-0216","paper defaults reach the experiment engine and retained compact outputs",15,0,FALSE,FALSE,0,0.394,0.004,0.398,15
+"test-speed-021.R","speed-021","compiled EGCAR preserves full-space reference updates and inputs",51,0,FALSE,FALSE,0,0.519,0.004,0.523999999999997,51
+"test-speed-021.R","speed-021","compiled EGCAR CV keeps the same folds, candidates and held-out score",12,0,FALSE,FALSE,0,0.527999999999999,0.001,0.529,12
+"test-speed-021.R","speed-021","the single-configuration all-method checker is installed and parseable",2,0,FALSE,FALSE,0,0.00799999999999912,0,0.00800000000000267,2

@@ -1,0 +1,6 @@
+data_sha256 b6cbee58211d04f6c85760e0d2855c61e823ff9ab6484a9c53538aa4b3f10790 
+           used  (Mb) gc trigger  (Mb) max used  (Mb)
+Ncells   488309  26.1     864501  46.2   670533  35.9
+Vcells 15963053 121.8   22596761 172.4 18716576 142.8
+old p 500 solver_seconds 4.756 fit_through_loadings_seconds 6.345 iterations 20 converged TRUE loading_valid TRUE 
+peak_rss_kib 296960

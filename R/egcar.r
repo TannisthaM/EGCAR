@@ -5,17 +5,24 @@
 #' @description Fit the pairwise regression loss with one of two separate sparsity penalties and obtain localized generalized-correlation loadings.
 #' @param x Raw views, an \code{egcar_prepared} object, or an \code{egcar_cv_data} object (using its full data).
 #' @param rank Number of leading positive loading directions requested.
-#' @param penalty \code{"l11"} for entrywise sparsity or \code{"l21"} for the view-wise concatenated row-group penalty. They are not combined.
+#' @param penalty \code{"l11"} for entrywise sparsity or \code{"l21"} for the global row-L21 penalty with post-fit symmetrization. They are not combined.
 #' @param lambda A direct nonnegative penalty coefficient, or the coefficient vector for a path.
 #' @param control An \code{egcar_control} object or a named subset of its arguments.
 #' @param init An optional same-family fitted object or dimension-compatible ADMM-state list. Used as a warm start.
-#' @param multiplier Nonnegative multiplier applied to the selected rate scale. NULL uses the frozen pilot-calibrated L21 default (0.05), or 1 for L11. Explicit numeric values retain their original meaning.
+#' @param multiplier Nonnegative multiplier applied to the selected rate scale. NULL uses the inherited L21 default (0.05), calibrated for the earlier symmetry-constrained estimator, or 1 for L11. Explicit numeric values retain their original meaning.
 #' @details For each unordered view pair the smooth loss is
 #' \deqn{\tfrac12\mathrm{tr}(C_{kl}^{T}S_{kk}C_{kl}S_{ll})-\langle S_{kl},C_{kl}\rangle.}
 #' The entrywise version adds \eqn{\lambda\sum_{k<l}\|C_{kl}\|_{1,1}}.
-#' The group version adds \eqn{\lambda\sum_k\|M_k(C)\|_{2,1}}, where each row
-#' of \eqn{M_k(C)} concatenates all coefficients incident to one variable in view k.
-#' The latter uses only C, G and V; it contains no entrywise proximal update.
+#' Since 0.2.17, L21 fits directed off-diagonal blocks with penalty
+#' \eqn{\lambda\sum_i\|C_{i,:}\|_2}, and half the unordered loss for each
+#' directed pair. It returns \eqn{(Z+Z^T)/2} after ADMM, where Z is the
+#' row-thresholded copy. Diagonal blocks remain zero. Convergence describes
+#' the directed convex problem, not the final symmetric projection. The old
+#' sum of view-group norms already equalled global L21 on symmetric C;
+#' postponing symmetry is the change in estimator. Row and column penalties
+#' need not agree during directed fitting; this implementation uses rows.
+#' L21 warm starts require the global_rows_posthoc formulation tag.
+#' The 0.05 rate multiplier is retained, not recalibrated for this new model.
 #' The reduced-basis linear solve retains the full null-space contribution.
 #' Loadings use the largest algebraic eigenvalues of the localized normalized operator.
 #' If fewer than the requested number of positive directions exist, the operator fit
@@ -30,7 +37,7 @@
 #' Since 0.2.15, fit_time includes optimization through loading extraction.
 #' solver_time and loading_time are components, while wall_time includes current-call preparation.
 #' Paths share a bounded loading-factor cache across coefficients.
-#' @return \code{egcar_fit} and \code{egcar_rate} return \code{egcar_fit} objects containing stacked loadings \code{L}, view loadings, edge blocks \code{C}, the raw solver state (compressed Hk/Hl/a for L21 by default; legacy G/V with compact_state=FALSE), residuals, convergence status, selected rows, training means, controls and separated timings. A path returns the coefficient vector and corresponding fitted objects.
+#' @return \code{egcar_fit} and \code{egcar_rate} return \code{egcar_fit} objects containing stacked loadings \code{L}, view loadings, edge blocks \code{C}, the raw solver state (right-spectral Hk/Hl/a/hnull for native L21; C aliases its final symmetric estimate), residuals, convergence status, selected rows, training means, controls and separated timings. A path returns the coefficient vector and corresponding fitted objects.
 #' @rdname egcar_fit
 #' @examples
 #' sim <- egcar_simulate(n = 30, p_list = c(3, 4, 5), active_per_view = 2)
