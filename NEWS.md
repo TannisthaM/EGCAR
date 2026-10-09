@@ -111,7 +111,7 @@
   the old parallel:: lookup always fell back to independent sessions.
 * Compile and test the installed package on R 4.3.3/Linux, including numerical
   comparisons against independent dense updates, cross-backend warm starts,
-  rank-1/2/5 checks, and serial/multisession CV. See ALGORITHM_IMPLEMENTATION_0212.md.
+  rank-1/2/5 checks, and serial/multisession CV. See inst/doc/ALGORITHM_IMPLEMENTATION_0212.md.
 
 # egcar 0.2.11
 
@@ -136,7 +136,7 @@
   documented, and repair a legacy test that referenced removed fold fields.
 * Add numerical regression tests and a reproducible old/new R benchmark.
   Algebra and extracted C++ kernel checks passed locally; R execution and full
-  package benchmarks were unavailable. See OPTIMIZATION_REPORT.md.
+  package benchmarks were unavailable. See inst/doc/OPTIMIZATION_REPORT.md.
 
 # egcar 0.2.10
 

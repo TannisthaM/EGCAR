@@ -3,7 +3,7 @@
 #' Accelerated sparse generalized correlation analysis
 #'
 #' @description Compiled and R implementations of separate entrywise and
-#'   view-wise row-group regression estimators, with reusable common-loss
+#'   global row-group regression estimators, with reusable common-fold
 #'   cross-validation and optional comparison wrappers.
 #' @details Start with \code{egcar_cv_data}, \code{egcar_fit},
 #'   \code{egcar_rate} and \code{egcar_cv}. Select \code{penalty = "l11"}

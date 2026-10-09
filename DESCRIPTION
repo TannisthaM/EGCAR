@@ -3,20 +3,22 @@ Type: Package
 Title: Accelerated Sparse Generalized Correlation Analysis via
         Regression
 Version: 0.2.18
-Authors@R: c(person("EGCAR", "Contributors", role = c("aut", "cre"),
-    email = "maintainer@example.org"),
+Authors@R: c(person("EGCAR", "Contributors", role = "aut"),
+    person("TannisthaM", role = "cre", email = "tannistha@uchicago.edu"),
     person("Claire", "Donnat", role = "cph",
     comment = "Bundled MIT-licensed initializer helpers"))
 Description: Fits separate entrywise and global row-group sparse generalized
     correlation estimators using accelerated alternating direction updates,
     cached spectral reductions, and localized loading extraction. Includes
     direct-penalty cross-validation, rate-scaled fits, reusable common folds,
-    and optional common-loss comparison wrappers for sparse generalized
+    and comparison wrappers for sparse generalized
     correlation analysis, regularized and sparse generalized canonical
     correlation analysis, and penalized multiset canonical correlation analysis.
-    Based on the accompanying research implementation. The maintainer field
-    is a placeholder for local research use and must be replaced for publication.
+    Sparse generalized correlation analysis can use its paper-based validation
+    score or the common comparison score used by the other wrappers.
 License: GPL-3
+URL: https://github.com/TannisthaM/EGCAR
+BugReports: https://github.com/TannisthaM/EGCAR/issues
 Encoding: UTF-8
 Depends: R (>= 4.0.0)
 Imports: Rcpp, RSpectra, callr, stats, utils
@@ -27,7 +29,3 @@ SystemRequirements: C++14
 NeedsCompilation: yes
 Config/testthat/edition: 3
 Roxygen: list(markdown = FALSE)
-Author: EGCAR Contributors [aut, cre],
-  Claire Donnat [cph] (Bundled MIT-licensed initializer helpers)
-Maintainer: EGCAR Contributors <maintainer@example.org>
-Packaged: 2026-10-08 09:37:13 UTC; root

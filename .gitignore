@@ -1,0 +1,15 @@
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+.DS_Store
+__MACOSX/
+*.Rcheck/
+egcar_*.tar.gz
+*.zip
+src/*.o
+src/*.so
+src/*.dll
+src/*.a
+src/symbols.rds
+00LOCK*/

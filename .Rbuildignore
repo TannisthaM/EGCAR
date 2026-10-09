@@ -1,0 +1,14 @@
+^\.git$
+^\.github$
+^\.gitignore$
+^\.gitattributes$
+^.*\.Rproj$
+^\.Rproj\.user$
+^LICENSE\.md$
+^CONTRIBUTING\.md$
+^.*\.Rcheck$
+^egcar_.*\.tar\.gz$
+^.*\.zip$
+(^|/)\.DS_Store$
+(^|/)__MACOSX($|/)
+^src/.*\.(o|so|dll|a)$
